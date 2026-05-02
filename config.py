@@ -25,8 +25,8 @@ API_STORAGE_FILE = "failed_api_requests.json"
 ENABLE_LIVENESS = False  # Blink detection
 
 # ★★★ CAMERA SETTINGS ★★★
-CAMERA_RESOLUTION = (960, 1080)
-CAMERA_FPS = 60
+CAMERA_RESOLUTION = (640, 480) # Use a standard 4:3 or 16:9 resolution
+CAMERA_FPS = 30   
 
 # ★★★ INSIGHTFACE MODEL SETTINGS ★★★
 INSIGHTFACE_MODEL = 'buffalo_sc'          # Model pack: 'buffalo_l' (accurate) or 'buffalo_sc' (faster)
