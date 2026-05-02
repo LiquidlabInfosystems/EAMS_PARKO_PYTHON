@@ -131,6 +131,7 @@ class WelcomeScreen(QWidget):
             background: transparent;
         """)
         self.subtitle_label.setWordWrap(True)
+        self.subtitle_label.setMinimumWidth(10)
         main_layout.addWidget(self.subtitle_label)
         
         # Stretch between logo/subtitle and welcome text
@@ -149,6 +150,7 @@ class WelcomeScreen(QWidget):
             background: transparent;
         """)
         self.title_label.setWordWrap(True)
+        self.title_label.setMinimumWidth(10)
         main_layout.addWidget(self.title_label)
         main_layout.addSpacing(30)
         
@@ -166,6 +168,7 @@ class WelcomeScreen(QWidget):
             border-radius: 8px;
         """)
         self.instruction_label.setWordWrap(True)
+        self.instruction_label.setMinimumWidth(10)
         main_layout.addWidget(self.instruction_label)
         main_layout.addSpacing(20)
         

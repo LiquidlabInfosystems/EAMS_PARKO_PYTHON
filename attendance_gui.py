@@ -18,7 +18,7 @@ os.environ['QT_LOGGING_RULES'] = '*.debug=false;qt.accessibility.atspi.warning=f
 import sys
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                                QHBoxLayout, QLabel, QPushButton, QFrame, QInputDialog, 
-                               QGridLayout, QMessageBox, QDialog, QProgressBar, QStackedWidget)
+                               QGridLayout, QMessageBox, QDialog, QProgressBar, QStackedWidget, QSizePolicy)
 from PySide6.QtCore import Qt, QThread, Signal, Slot, QTimer, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QImage, QPixmap, QFont
 from picamera2 import Picamera2
@@ -60,8 +60,8 @@ class NotificationOverlay(QWidget):
                 border: 4px solid #00ff88;
                 border-radius: 10px;
                 padding: 40px;
-                min-width: 480px;
-                max-width: 720px;
+                min-width: 200px;
+                max-width: 400px;
             }
             QLabel {
                 color: #ffffff;
@@ -129,8 +129,8 @@ class NotificationOverlay(QWidget):
                 border: 4px solid {border_color};
                 border-radius: 10px;
                 padding: 40px;
-                min-width: 400px;
-                max-width: 600px;
+                min-width: 200px;
+                max-width: 400px;
             }}
             QLabel {{
                 color: #ffffff;
@@ -567,18 +567,21 @@ class AttendanceKioskGUI(QMainWindow):
         self.title_label.setObjectName("title")
         self.title_label.setAlignment(Qt.AlignCenter)
         self.title_label.setWordWrap(True)
+        self.title_label.setMinimumWidth(10)
         main_layout.addWidget(self.title_label)
 
         self.status_label = QLabel("Starting...")
         self.status_label.setObjectName("status")
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setWordWrap(True)
+        self.status_label.setMinimumWidth(10)
         main_layout.addWidget(self.status_label)
 
         self.instruction_label = QLabel("")
         self.instruction_label.setObjectName("instruction")
         self.instruction_label.setAlignment(Qt.AlignCenter)
         self.instruction_label.setWordWrap(True)
+        self.instruction_label.setMinimumWidth(10)
         self.instruction_label.setVisible(False)
         main_layout.addWidget(self.instruction_label)
 
@@ -600,6 +603,7 @@ class AttendanceKioskGUI(QMainWindow):
         self.camera_label = QLabel()
         self.camera_label.setObjectName("camera")
         self.camera_label.setAlignment(Qt.AlignCenter)
+        self.camera_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
         self.display_stack.addWidget(self.camera_label)
 
         # Start with welcome screen
