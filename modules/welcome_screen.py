@@ -60,9 +60,9 @@ class WelcomeScreen(QWidget):
         if os.path.exists(self.logo_path):
             self.logo_pixmap = QPixmap(self.logo_path)
             if not self.logo_pixmap.isNull():
-                # Scale to 450px width while maintaining aspect ratio
+                # Initial scale - will be refined in resizeEvent
                 self.logo_pixmap = self.logo_pixmap.scaledToWidth(
-                    450, Qt.SmoothTransformation
+                    300, Qt.SmoothTransformation
                 )
         
     def init_ui(self):
@@ -81,7 +81,7 @@ class WelcomeScreen(QWidget):
         self.time_label.setAlignment(Qt.AlignCenter)
         self.time_label.setStyleSheet(f"""
             color: {THEME['text_primary']};
-            font-size: 36px;
+            font-size: 24px;
             font-weight: bold;
             font-family: 'Inter', 'SF Pro Display', 'Segoe UI', 'Roboto', sans-serif;
             background: transparent;
@@ -97,7 +97,7 @@ class WelcomeScreen(QWidget):
         self.date_label.setAlignment(Qt.AlignCenter)
         self.date_label.setStyleSheet(f"""
             color: {THEME['text_secondary']};
-            font-size: 20px;
+            font-size: 14px;
             font-weight: 400;
             font-family: 'Inter', 'SF Pro Display', 'Segoe UI', 'Roboto', sans-serif;
             background: transparent;
@@ -124,12 +124,13 @@ class WelcomeScreen(QWidget):
         self.subtitle_label.setAlignment(Qt.AlignCenter)
         self.subtitle_label.setStyleSheet(f"""
             color: {THEME['text_secondary']};
-            font-size: 24px;
+            font-size: 16px;
             font-weight: 500;
             font-family: 'Inter', 'SF Pro Display', 'Segoe UI', 'Roboto', sans-serif;
-            padding: 10px;
+            padding: 5px;
             background: transparent;
         """)
+        self.subtitle_label.setWordWrap(True)
         main_layout.addWidget(self.subtitle_label)
         
         # Stretch between logo/subtitle and welcome text
@@ -140,13 +141,14 @@ class WelcomeScreen(QWidget):
         self.title_label.setAlignment(Qt.AlignCenter)
         self.title_label.setStyleSheet(f"""
             color: {THEME['text_primary']};
-            font-size: 64px;
+            font-size: 32px;
             font-weight: bold;
             font-family: 'Inter', 'SF Pro Display', 'Segoe UI', 'Roboto', sans-serif;
-            letter-spacing: 2px;
-            padding: 10px;
+            letter-spacing: 1px;
+            padding: 5px;
             background: transparent;
         """)
+        self.title_label.setWordWrap(True)
         main_layout.addWidget(self.title_label)
         main_layout.addSpacing(30)
         
@@ -155,14 +157,15 @@ class WelcomeScreen(QWidget):
         self.instruction_label.setAlignment(Qt.AlignCenter)
         self.instruction_label.setStyleSheet(f"""
             color: {THEME['accent_secondary']};
-            font-size: 20px;
+            font-size: 14px;
             font-weight: 400;
             font-family: 'Inter', 'SF Pro Display', 'Segoe UI', 'Roboto', sans-serif;
-            padding: 10px 20px;
+            padding: 8px 15px;
             background: rgba(74, 144, 226, 0.1);
-            border: 2px solid rgba(74, 144, 226, 0.3);
-            border-radius: 12px;
+            border: 1px solid rgba(74, 144, 226, 0.3);
+            border-radius: 8px;
         """)
+        self.instruction_label.setWordWrap(True)
         main_layout.addWidget(self.instruction_label)
         main_layout.addSpacing(20)
         
@@ -348,6 +351,13 @@ class WelcomeScreen(QWidget):
             self.animation_timer.start(50)
     
     def resizeEvent(self, event):
-        """Handle resize events"""
+        """Handle resize events - scale logo dynamically"""
         super().resizeEvent(event)
+        
+        # Scale logo to 70% of screen width if logo label exists
+        if self.logo_pixmap and not self.logo_pixmap.isNull() and hasattr(self, 'logo_label'):
+            target_width = int(self.width() * 0.7)
+            scaled_logo = self.logo_pixmap.scaledToWidth(target_width, Qt.SmoothTransformation)
+            self.logo_label.setPixmap(scaled_logo)
+            
         self.update()

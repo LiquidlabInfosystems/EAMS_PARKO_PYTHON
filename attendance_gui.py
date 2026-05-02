@@ -520,14 +520,14 @@ class AttendanceKioskGUI(QMainWindow):
         self.setWindowTitle(f"Employee Attendance System - {liveness_status} | {api_status}")
         self.setStyleSheet("""
             QMainWindow { background-color: #1a1a1a; }
-            QLabel#title { color: #ffffff; font-size: 32px; font-weight: bold; padding: 20px; }
-            QLabel#status { color: #00ff88; font-size: 18px; padding: 10px; }
-            QLabel#instruction { color: #00ff88; font-size: 26px; font-weight: bold; padding: 15px; }
-            QLabel#feedback { color: #ffffff; font-size: 20px; font-weight: bold; padding: 10px; }
+            QLabel#title { color: #ffffff; font-size: 18px; font-weight: bold; padding: 10px; }
+            QLabel#status { color: #00ff88; font-size: 14px; padding: 5px; }
+            QLabel#instruction { color: #00ff88; font-size: 16px; font-weight: bold; padding: 8px; }
+            QLabel#feedback { color: #ffffff; font-size: 14px; font-weight: bold; padding: 5px; }
             QLabel#camera { background-color: #000000; border: 3px solid #00ff88; border-radius: 10px; }
             QPushButton {
                 background-color: #2d2d2d; color: #ffffff; border: 2px solid #4d4d4d;
-                border-radius: 12px; font-size: 16px; font-weight: bold; padding: 12px; min-height: 50px;
+                border-radius: 8px; font-size: 14px; font-weight: bold; padding: 8px; min-height: 40px;
             }
             QPushButton:hover { background-color: #3d3d3d; border-color: #00ff88; }
             QPushButton:pressed { background-color: #1d1d1d; }
@@ -557,16 +557,19 @@ class AttendanceKioskGUI(QMainWindow):
         self.title_label = QLabel("Employee Attendance Management System")
         self.title_label.setObjectName("title")
         self.title_label.setAlignment(Qt.AlignCenter)
+        self.title_label.setWordWrap(True)
         main_layout.addWidget(self.title_label)
 
         self.status_label = QLabel("Starting...")
         self.status_label.setObjectName("status")
         self.status_label.setAlignment(Qt.AlignCenter)
+        self.status_label.setWordWrap(True)
         main_layout.addWidget(self.status_label)
 
         self.instruction_label = QLabel("")
         self.instruction_label.setObjectName("instruction")
         self.instruction_label.setAlignment(Qt.AlignCenter)
+        self.instruction_label.setWordWrap(True)
         self.instruction_label.setVisible(False)
         main_layout.addWidget(self.instruction_label)
 
