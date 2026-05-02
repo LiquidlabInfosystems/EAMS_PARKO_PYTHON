@@ -81,7 +81,7 @@ class WelcomeScreen(QWidget):
         self.time_label.setAlignment(Qt.AlignCenter)
         self.time_label.setStyleSheet(f"""
             color: {THEME['text_primary']};
-            font-size: 48px;
+            font-size: 36px;
             font-weight: bold;
             font-family: 'Inter', 'SF Pro Display', 'Segoe UI', 'Roboto', sans-serif;
             background: transparent;
@@ -97,7 +97,7 @@ class WelcomeScreen(QWidget):
         self.date_label.setAlignment(Qt.AlignCenter)
         self.date_label.setStyleSheet(f"""
             color: {THEME['text_secondary']};
-            font-size: 24px;
+            font-size: 20px;
             font-weight: 400;
             font-family: 'Inter', 'SF Pro Display', 'Segoe UI', 'Roboto', sans-serif;
             background: transparent;
@@ -124,7 +124,7 @@ class WelcomeScreen(QWidget):
         self.subtitle_label.setAlignment(Qt.AlignCenter)
         self.subtitle_label.setStyleSheet(f"""
             color: {THEME['text_secondary']};
-            font-size: 36px;
+            font-size: 24px;
             font-weight: 500;
             font-family: 'Inter', 'SF Pro Display', 'Segoe UI', 'Roboto', sans-serif;
             padding: 10px;
@@ -140,7 +140,7 @@ class WelcomeScreen(QWidget):
         self.title_label.setAlignment(Qt.AlignCenter)
         self.title_label.setStyleSheet(f"""
             color: {THEME['text_primary']};
-            font-size: 90px;
+            font-size: 64px;
             font-weight: bold;
             font-family: 'Inter', 'SF Pro Display', 'Segoe UI', 'Roboto', sans-serif;
             letter-spacing: 2px;
@@ -155,13 +155,13 @@ class WelcomeScreen(QWidget):
         self.instruction_label.setAlignment(Qt.AlignCenter)
         self.instruction_label.setStyleSheet(f"""
             color: {THEME['accent_secondary']};
-            font-size: 26px;
+            font-size: 20px;
             font-weight: 400;
             font-family: 'Inter', 'SF Pro Display', 'Segoe UI', 'Roboto', sans-serif;
-            padding: 15px 30px;
+            padding: 10px 20px;
             background: rgba(74, 144, 226, 0.1);
             border: 2px solid rgba(74, 144, 226, 0.3);
-            border-radius: 15px;
+            border-radius: 12px;
         """)
         main_layout.addWidget(self.instruction_label)
         main_layout.addSpacing(20)

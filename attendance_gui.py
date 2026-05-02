@@ -527,7 +527,7 @@ class AttendanceKioskGUI(QMainWindow):
             QLabel#camera { background-color: #000000; border: 3px solid #00ff88; border-radius: 10px; }
             QPushButton {
                 background-color: #2d2d2d; color: #ffffff; border: 2px solid #4d4d4d;
-                border-radius: 15px; font-size: 18px; font-weight: bold; padding: 20px; min-height: 70px;
+                border-radius: 12px; font-size: 16px; font-weight: bold; padding: 12px; min-height: 50px;
             }
             QPushButton:hover { background-color: #3d3d3d; border-color: #00ff88; }
             QPushButton:pressed { background-color: #1d1d1d; }
@@ -538,9 +538,9 @@ class AttendanceKioskGUI(QMainWindow):
             QPushButton#jobIn { border-color: #bd10e0; }
             QPushButton#jobOut { border-color: #9b10c0; }
             QPushButton#addFace { border-color: #50c878; }
-            QPushButton#capture { background-color: #4a90e2; border-color: #6ab0ff; font-size: 20px; }
-            QPushButton#cancelReg { background-color: #cc3333; border-color: #ff4444; font-size: 20px; }
-            QFrame#buttonContainer { background-color: #0d0d0d; border-top: 3px solid #00ff88; padding: 20px; }
+            QPushButton#capture { background-color: #4a90e2; border-color: #6ab0ff; font-size: 18px; }
+            QPushButton#cancelReg { background-color: #cc3333; border-color: #ff4444; font-size: 18px; }
+            QFrame#buttonContainer { background-color: #0d0d0d; border-top: 3px solid #00ff88; padding: 10px; }
             QProgressBar {
                 border: 2px solid #4a90e2; border-radius: 5px; text-align: center;
                 color: #ffffff; font-weight: bold; min-height: 30px; font-size: 16px;
@@ -578,7 +578,7 @@ class AttendanceKioskGUI(QMainWindow):
 
         # Stacked widget for welcome screen and camera feed
         self.display_stack = QStackedWidget()
-        self.display_stack.setMinimumSize(800, 600)
+        # Removed fixed minimum size to allow fitting on smaller screens
 
         # Welcome screen (index 0)
         self.welcome_widget = WelcomeScreen()
@@ -607,8 +607,8 @@ class AttendanceKioskGUI(QMainWindow):
         self.button_frame = QFrame()
         self.button_frame.setObjectName("buttonContainer")
         button_layout = QGridLayout(self.button_frame)
-        button_layout.setSpacing(15)
-        button_layout.setContentsMargins(30, 20, 30, 20)
+        button_layout.setSpacing(10)
+        button_layout.setContentsMargins(20, 10, 20, 10)
 
         self.time_in_btn = QPushButton("\U0001F551 TIME IN")
         self.time_in_btn.setObjectName("timeIn")
