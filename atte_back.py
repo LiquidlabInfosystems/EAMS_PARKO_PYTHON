@@ -205,6 +205,15 @@ class CameraThread(QThread):
             while self._running:
                 try:
                     frame_rgb = self.picam2.capture_array()
+                    
+                    rotation = getattr(config, 'CAMERA_ROTATION', 0)
+                    if rotation == 90:
+                        frame_rgb = cv2.rotate(frame_rgb, cv2.ROTATE_90_CLOCKWISE)
+                    elif rotation == 180:
+                        frame_rgb = cv2.rotate(frame_rgb, cv2.ROTATE_180)
+                    elif rotation == 270:
+                        frame_rgb = cv2.rotate(frame_rgb, cv2.ROTATE_90_COUNTERCLOCKWISE)
+
                     self.frame_ready.emit(frame_rgb)
                     time.sleep(1.0 / config.CAMERA_FPS)
 
@@ -488,8 +497,8 @@ class AttendanceKioskGUI(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(5)
 
         title_emoji = "🛡️" if config.ENABLE_LIVENESS else "👁️"
         self.title_label = QLabel(f"{title_emoji} Employee Attendance Management System")
