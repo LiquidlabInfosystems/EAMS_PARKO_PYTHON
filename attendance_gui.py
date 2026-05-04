@@ -14,11 +14,14 @@ import os
 os.environ['GLOG_minloglevel'] = '2'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 os.environ['QT_LOGGING_RULES'] = '*.debug=false;qt.accessibility.atspi.warning=false'
+# Tell Qt to use the virtual keyboard input method (required for touchscreen on RPi)
+os.environ.setdefault('QT_IM_MODULE', 'qtvirtualkeyboard')
 
 import sys
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                                QHBoxLayout, QLabel, QPushButton, QFrame, QInputDialog, 
-                               QGridLayout, QMessageBox, QDialog, QProgressBar, QStackedWidget, QSizePolicy)
+                               QGridLayout, QMessageBox, QDialog, QProgressBar, QStackedWidget,
+                               QSizePolicy, QLineEdit)
 from PySide6.QtCore import Qt, QThread, Signal, Slot, QTimer, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QImage, QPixmap, QFont
 from picamera2 import Picamera2
@@ -38,6 +41,107 @@ from modules.mqtt_face_registration import MQTTFaceRegistrationHandler
 from modules.temporal_buffer import TemporalRecognitionBuffer
 
 import config
+
+
+class VKLineEdit(QLineEdit):
+    """
+    QLineEdit that explicitly triggers the system virtual keyboard on focus.
+    Required on PySide6 + RPi touchscreen because Qt does not auto-show the
+    OS keyboard without a working QT_IM_MODULE configured.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Must be set so Qt routes touch-focus to the input method
+        self.setAttribute(Qt.WA_InputMethodEnabled, True)
+
+    def focusInEvent(self, event):
+        super().focusInEvent(event)
+        im = QApplication.instance().inputMethod()
+        if im:
+            im.show()
+
+    def focusOutEvent(self, event):
+        super().focusOutEvent(event)
+        # Hide is managed by the system; don't force-hide here
+
+
+class TextInputDialog(QDialog):
+    """
+    Compact styled text-input dialog that uses VKLineEdit so the system
+    virtual keyboard appears automatically on touch.
+    Replaces QInputDialog.getText() for kiosk use.
+    """
+    def __init__(self, parent=None, title="Enter Text", label="",
+                 echo_mode=QLineEdit.Normal, placeholder=""):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setModal(True)
+        self.setFixedSize(420, 190)
+        self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #1a1a2e;
+                border: 2px solid #9B59B6;
+                border-radius: 12px;
+            }
+            QLabel { color: #E8D5F5; font-size: 14px; }
+            VKLineEdit, QLineEdit {
+                background-color: #2D1B4E;
+                color: #E8D5F5;
+                border: 2px solid #6C3483;
+                border-radius: 8px;
+                padding: 8px 12px;
+                font-size: 18px;
+            }
+            VKLineEdit:focus, QLineEdit:focus { border-color: #9B59B6; }
+            QPushButton#btn_confirm {
+                background-color: #8E44AD; color: #fff;
+                border: none; border-radius: 8px;
+                font-size: 14px; font-weight: bold; padding: 9px;
+            }
+            QPushButton#btn_confirm:pressed { background-color: #6C3483; }
+            QPushButton#btn_cancel {
+                background-color: transparent; color: #A569BD;
+                border: 1px solid #6C3483; border-radius: 8px;
+                font-size: 14px; padding: 9px;
+            }
+            QPushButton#btn_cancel:pressed { background-color: #2D1B4E; }
+        """)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(18, 14, 18, 12)
+        root.setSpacing(8)
+
+        title_lbl = QLabel(title)
+        title_lbl.setAlignment(Qt.AlignCenter)
+        title_lbl.setStyleSheet("font-size: 15px; font-weight: bold;")
+        root.addWidget(title_lbl)
+
+        if label:
+            root.addWidget(QLabel(label))
+
+        self.input = VKLineEdit()
+        self.input.setPlaceholderText(placeholder or title)
+        self.input.setEchoMode(echo_mode)
+        self.input.returnPressed.connect(self.accept)
+        root.addWidget(self.input)
+
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(8)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setObjectName("btn_cancel")
+        cancel_btn.clicked.connect(self.reject)
+        btn_row.addWidget(cancel_btn)
+        confirm_btn = QPushButton("✓  OK")
+        confirm_btn.setObjectName("btn_confirm")
+        confirm_btn.clicked.connect(self.accept)
+        btn_row.addWidget(confirm_btn)
+        root.addLayout(btn_row)
+
+        self.input.setFocus()
+
+    def get_text(self) -> str:
+        return self.input.text()
 
 
 class NotificationOverlay(QWidget):
@@ -298,7 +402,7 @@ class AdminPasswordDialog(QDialog):
         title.setStyleSheet("font-size: 16px; font-weight: bold;")
         root.addWidget(title)
 
-        self.password_input = QLineEdit()
+        self.password_input = VKLineEdit()
         self.password_input.setPlaceholderText("Enter admin password")
         self.password_input.setEchoMode(QLineEdit.Password)
         self.password_input.returnPressed.connect(self.accept)
@@ -1508,16 +1612,25 @@ class AttendanceKioskGUI(QMainWindow):
             dlg.show_error(err_msg or "Invalid password")
             self.status_label.setText("❌ Invalid admin password")
 
-        # ── Step 2: Collect name (system keyboard) ──────────────────────────────
-        name, ok = QInputDialog.getText(self, "Add New Face", "Enter person's name:")
-        if not (ok and name.strip()):
+        # ── Step 2: Collect name ─────────────────────────────────────────────
+        name_dlg = TextInputDialog(self, title="Enter Person's Name",
+                                   placeholder="Full name")
+        if name_dlg.exec() != QDialog.Accepted:
+            return
+        name = name_dlg.get_text().strip()
+        if not name:
             return
 
-        # ── Step 3: Collect employee ID (system keyboard) ───────────────────────
-        employee_id, id_ok = QInputDialog.getText(
-            self, "Employee ID", "Enter employee ID (required):"
-        )
-        if not id_ok or not employee_id.strip():
+        # ── Step 3: Collect employee ID ───────────────────────────────────────
+        emp_dlg = TextInputDialog(self, title="Enter Employee ID",
+                                  placeholder="Employee ID")
+        if emp_dlg.exec() != QDialog.Accepted:
+            self.notification_overlay.show_notification(
+                "Cancelled", "Employee ID is required for registration", "warning", 2000
+            )
+            return
+        employee_id = emp_dlg.get_text().strip()
+        if not employee_id:
             self.notification_overlay.show_notification(
                 "Cancelled", "Employee ID is required for registration", "warning", 2000
             )
