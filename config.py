@@ -73,15 +73,16 @@ UNKNOWN_PERSON_CLEANUP_DAYS = 30 # days
 
 # ★★★ THEME CONFIGURATION ★★★
 THEME = {
-    "background_light": "#F0F4F8",
-    "background_medium": "#E8EDF2",
-    "accent_primary": "#1E3A5F",      # Dark blue
-    "accent_secondary": "#4A90D9",     # Light blue
-    "text_primary": "#1E3A5F",
-    "text_secondary": "#5A7A9A",
-    "success": "#2ECC71",
-    "warning": "#F39C12",
-    "error": "#E74C3C",
+    "background_light":   "#1A0A2E",   # Deep purple background
+    "background_medium":  "#2D1B4E",   # Slightly lighter purple for stripes
+    "accent_primary":     "#9B59B6",   # Purple accent
+    "accent_secondary":   "#C39BD3",   # Light lavender
+    "text_primary":       "#E8D5F5",   # Light purple-white text
+    "text_secondary":     "#A569BD",   # Muted purple text
+    "success":            "#2ECC71",
+    "warning":            "#F39C12",
+    "error":              "#E74C3C",
+
 }
 
 # Lane Configuration

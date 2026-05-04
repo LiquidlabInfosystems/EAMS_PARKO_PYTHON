@@ -457,6 +457,54 @@ class AttendanceAPIClient:
             print(f"❌ API Send Error: {e}")
             return False
 
+    def validate_admin_password(self, password: str) -> Tuple[bool, str]:
+        """
+        Validate admin password against server.
+
+        Args:
+            password: Plain-text password entered by the user.
+
+        Returns:
+            (True, "") on success, or (False, error_message) on failure.
+        """
+        # ★★★ TEMPORARY BYPASS — remove once /api/validate_admin_password is live ★★★
+        _TEMP_ADMIN_PASSWORD = "1234"
+        if password == _TEMP_ADMIN_PASSWORD:
+            print("⚠️  Admin password validated via temporary hardcoded bypass (1234)")
+            return True, ""
+        else:
+            return False, "Invalid admin password"
+        # ★★★ END TEMPORARY BYPASS ★★★
+
+        # --- real implementation (re-enable when API is ready) ---
+        url = f"http://{self.server_ip}:{self.server_port}/api/validate_admin_password"
+        try:
+            response = requests.post(
+                url,
+                json={"password": password},
+                headers={"Content-Type": "application/json"},
+                timeout=self.timeout,
+            )
+            if response.status_code in [200, 201]:
+                data = response.json()
+                if data.get("success", False):
+                    return True, ""
+                else:
+                    return False, data.get("message", "Invalid password")
+            else:
+                try:
+                    data = response.json()
+                    msg = data.get("message", f"Server error {response.status_code}")
+                except Exception:
+                    msg = f"Server error {response.status_code}"
+                return False, msg
+        except requests.exceptions.Timeout:
+            return False, "Request timed out – server unreachable"
+        except requests.exceptions.ConnectionError:
+            return False, "Cannot connect to server"
+        except Exception as e:
+            return False, str(e)
+
     def get_stats(self) -> Dict:
         """Get API client statistics"""
         return {

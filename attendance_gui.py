@@ -247,9 +247,147 @@ class CameraThread(QThread):
         self.quit()
         self.wait()
 
+class AdminPasswordDialog(QDialog):
+    """Modal dialog that asks for the admin password before allowing face registration."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Admin Authentication")
+        self.setModal(True)
+        self.setFixedSize(480, 340)
+        self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
+
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #1a1a2e;
+                border: 2px solid #9B59B6;
+                border-radius: 14px;
+            }
+            QLabel#title {
+                color: #E8D5F5;
+                font-size: 22px;
+                font-weight: bold;
+                padding-bottom: 4px;
+            }
+            QLabel#subtitle {
+                color: #A569BD;
+                font-size: 13px;
+                padding-bottom: 10px;
+            }
+            QLabel#error {
+                color: #E74C3C;
+                font-size: 13px;
+                font-weight: bold;
+                padding-top: 4px;
+                min-height: 20px;
+            }
+            QLineEdit {
+                background-color: #2D1B4E;
+                color: #E8D5F5;
+                border: 2px solid #6C3483;
+                border-radius: 8px;
+                padding: 10px 14px;
+                font-size: 18px;
+                letter-spacing: 4px;
+            }
+            QLineEdit:focus {
+                border-color: #9B59B6;
+            }
+            QPushButton#confirm_btn {
+                background-color: #8E44AD;
+                color: #ffffff;
+                border: none;
+                border-radius: 8px;
+                font-size: 16px;
+                font-weight: bold;
+                padding: 12px 0;
+            }
+            QPushButton#confirm_btn:hover  { background-color: #9B59B6; }
+            QPushButton#confirm_btn:pressed { background-color: #6C3483; }
+            QPushButton#cancel_btn {
+                background-color: transparent;
+                color: #A569BD;
+                border: 1px solid #6C3483;
+                border-radius: 8px;
+                font-size: 16px;
+                padding: 12px 0;
+            }
+            QPushButton#cancel_btn:hover { color: #E8D5F5; border-color: #9B59B6; }
+        """)
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(36, 32, 36, 28)
+        outer.setSpacing(0)
+
+        # Icon + title
+        title = QLabel("🔐  Admin Authentication")
+        title.setObjectName("title")
+        title.setAlignment(Qt.AlignCenter)
+        outer.addWidget(title)
+
+        subtitle = QLabel("Enter the admin password to add a new face.")
+        subtitle.setObjectName("subtitle")
+        subtitle.setAlignment(Qt.AlignCenter)
+        outer.addWidget(subtitle)
+
+        outer.addSpacing(16)
+
+        # Password field
+        from PySide6.QtWidgets import QLineEdit
+        self.password_input = QLineEdit()
+        self.password_input.setPlaceholderText("Password")
+        self.password_input.setEchoMode(QLineEdit.Password)
+        self.password_input.returnPressed.connect(self._on_confirm)
+        outer.addWidget(self.password_input)
+
+        # Inline error label
+        self.error_label = QLabel("")
+        self.error_label.setObjectName("error")
+        self.error_label.setAlignment(Qt.AlignCenter)
+        outer.addWidget(self.error_label)
+
+        outer.addSpacing(20)
+
+        # Buttons
+        from PySide6.QtWidgets import QHBoxLayout
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(14)
+
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setObjectName("cancel_btn")
+        cancel_btn.clicked.connect(self.reject)
+        btn_row.addWidget(cancel_btn)
+
+        self.confirm_btn = QPushButton("Confirm")
+        self.confirm_btn.setObjectName("confirm_btn")
+        self.confirm_btn.clicked.connect(self._on_confirm)
+        btn_row.addWidget(self.confirm_btn)
+
+        outer.addLayout(btn_row)
+
+        # Focus the field immediately
+        self.password_input.setFocus()
+
+    # --- internal ---
+    def _on_confirm(self):
+        """Called when Confirm is pressed or Enter hit; does NOT validate here.
+        The caller reads .get_password() and validates externally so it can
+        show the error inline without closing the dialog."""
+        self.accept()
+
+    def get_password(self) -> str:
+        return self.password_input.text()
+
+    def show_error(self, message: str):
+        """Show an inline error and re-open the dialog for retry."""
+        self.error_label.setText(f"⚠  {message}")
+        self.password_input.clear()
+        self.password_input.setFocus()
+
 
 class SimpleConfirmationDialog(QDialog):
     """Confirmation dialog"""
+
 
     def __init__(self, parent, person_name, action):
         super().__init__(parent)
@@ -1388,37 +1526,75 @@ class AttendanceKioskGUI(QMainWindow):
         self.status_label.setText(message)
 
     def start_registration(self):
-        """Start registration"""
+        """Start registration — guarded by admin password validation."""
+
+        # ── Step 1: Admin password gate ──────────────────────────────────────
+        dlg = AdminPasswordDialog(self)
+
+        while True:
+            if dlg.exec() != QDialog.Accepted:
+                return  # User cancelled
+
+            password = dlg.get_password().strip()
+            if not password:
+                dlg.show_error("Password cannot be empty")
+                if dlg.exec() == QDialog.Rejected:
+                    return
+                continue
+
+            # Validate via API (or skip validation if API is disabled)
+            if self.api_client:
+                self.status_label.setText("🔑 Validating admin password...")
+                QApplication.processEvents()
+                ok, err_msg = self.api_client.validate_admin_password(password)
+            else:
+                # API disabled — allow locally without validation
+                ok, err_msg = True, ""
+
+            if ok:
+                break  # Password accepted, proceed
+
+            # Show error inline and loop for retry
+            dlg.show_error(err_msg or "Invalid password")
+            self.status_label.setText("❌ Invalid admin password")
+
+        # ── Step 2: Collect name ─────────────────────────────────────────────
         name, ok = QInputDialog.getText(self, "Add New Face", "Enter person's name:")
+        if not (ok and name.strip()):
+            return
 
-        if ok and name.strip():
-            # Prompt for employee ID - MANDATORY
-            employee_id, id_ok = QInputDialog.getText(self, "Employee ID", "Enter employee ID (required):")
-            
-            if not id_ok or not employee_id.strip():
-                self.notification_overlay.show_notification("Cancelled", "Employee ID is required for registration", "warning", 2000)
-                return
-            
-            # Force camera view during registration
-            self.display_stack.setCurrentIndex(1)
-            
-            self.registration_mode = True
-            self.registration_person_name = name.strip()
-            self.registration_person_employee_id = employee_id.strip()
-            self.captured_faces = []
-            self.current_registration_step = 0
+        # ── Step 3: Collect employee ID ───────────────────────────────────────
+        employee_id, id_ok = QInputDialog.getText(
+            self, "Employee ID", "Enter employee ID (required):"
+        )
+        if not id_ok or not employee_id.strip():
+            self.notification_overlay.show_notification(
+                "Cancelled", "Employee ID is required for registration", "warning", 2000
+            )
+            return
 
-            self.title_label.setText(f"👤 Registering: {self.registration_person_name}")
-            self.instruction_label.setText(self.registration_steps[0]["instruction"])
-            self.instruction_label.setVisible(True)
-            self.progress_bar.setValue(0)
-            self.progress_bar.setVisible(True)
+        # ── Step 4: Begin registration ────────────────────────────────────────
+        # Force camera view during registration
+        self.display_stack.setCurrentIndex(1)
 
-            self.button_frame.setVisible(False)
-            self.reg_button_frame.setVisible(True)
-            self.capture_btn.setEnabled(True)
+        self.registration_mode = True
+        self.registration_person_name = name.strip()
+        self.registration_person_employee_id = employee_id.strip()
+        self.captured_faces = []
+        self.current_registration_step = 0
 
-            self.status_label.setText(f"📸 Position and CAPTURE (10 samples required)")
+        self.title_label.setText(f"👤 Registering: {self.registration_person_name}")
+        self.instruction_label.setText(self.registration_steps[0]["instruction"])
+        self.instruction_label.setVisible(True)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setVisible(True)
+
+        self.button_frame.setVisible(False)
+        self.reg_button_frame.setVisible(True)
+        self.capture_btn.setEnabled(True)
+
+        self.status_label.setText("📸 Position and CAPTURE (10 samples required)")
+
 
     def capture_registration_face(self):
         """Capture with quality validation"""
