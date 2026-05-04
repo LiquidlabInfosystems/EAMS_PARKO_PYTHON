@@ -66,6 +66,54 @@ def ph(n): w, h = _scr(); return max(1, int(n * h / 854))
 def pf(n): w, h = _scr(); return max(8, int(n * min(w, h) / 480))
 # ─────────────────────────────────────────────────────────────────────────────
 
+import subprocess
+
+class VKLineEdit(QLineEdit):
+    """
+    Triggers the default system virtual keyboard (squeekboard on Wayland, onboard on X11).
+    """
+    _kb_proc = None
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setAttribute(Qt.WA_InputMethodEnabled, True)
+
+    def focusInEvent(self, event):
+        super().focusInEvent(event)
+        self._show_keyboard()
+
+    @classmethod
+    def _show_keyboard(cls):
+        # 1. Default device virtual keyboard (squeekboard via dbus)
+        try:
+            subprocess.run(
+                ['dbus-send', '--session', '--type=method_call',
+                 '--dest=sm.puri.OSK0', '/sm/puri/OSK0',
+                 'sm.puri.OSK0.SetVisible', 'boolean:true'],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                check=True
+            )
+            return
+        except Exception:
+            pass
+
+        # 2. X11 default keyboards
+        if cls._kb_proc is not None and cls._kb_proc.poll() is None:
+            return
+
+        for cmd in (['onboard'], ['matchbox-keyboard']):
+            try:
+                cls._kb_proc = subprocess.Popen(
+                    cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                )
+                return
+            except FileNotFoundError:
+                continue
+
+    def focusOutEvent(self, event):
+        super().focusOutEvent(event)
+
+
 
 
 
@@ -87,11 +135,11 @@ class TextInputDialog(QDialog):
         self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
         self.setStyleSheet(f"""
             QDialog {{
-                background-color: rgba(255, 255, 255, 240);
+                background-color: transparent;
                 border: none;
             }}
             QLabel {{ color: #333333; font-size: {pf(14)}px; }}
-            QLineEdit {{
+            VKLineEdit, QLineEdit {{
                 background-color: #f9f9f9;
                 color: #000000;
                 border: 2px solid #dddddd;
@@ -137,7 +185,7 @@ class TextInputDialog(QDialog):
         if label:
             root.addWidget(QLabel(label))
 
-        self.input = QLineEdit()
+        self.input = VKLineEdit()
         self.input.setPlaceholderText(placeholder or title)
         self.input.setEchoMode(echo_mode)
         self.input.returnPressed.connect(self.accept)
@@ -375,7 +423,6 @@ class CameraThread(QThread):
                 pass
         self.quit()
         self.wait()
-
 class AdminPasswordDialog(QDialog):
     """Admin-password modal. All sizes scale with screen resolution."""
 
@@ -383,16 +430,19 @@ class AdminPasswordDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Admin Authentication")
         self.setModal(True)
-        self.showFullScreen()
+        if parent:
+            self.setFixedSize(parent.size())
+        else:
+            self.showFullScreen()
         self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
         self.setStyleSheet(f"""
             QDialog {{
-                background-color: #1a1a2e;
+                background-color: transparent;
                 border: none;
             }}
             QLabel {{ color: #333333; font-size: {pf(15)}px; }}
             QLabel#dlg_error {{ color: #E74C3C; font-size: {pf(12)}px; min-height: {ph(16)}px; }}
-            QLineEdit {{
+            VKLineEdit, QLineEdit {{
                 background-color: #f9f9f9;
                 color: #000000;
                 border: 2px solid #dddddd;
@@ -401,7 +451,7 @@ class AdminPasswordDialog(QDialog):
                 font-size: {pf(20)}px;
                 letter-spacing: 4px;
             }}
-            QLineEdit:focus {{ border-color: #4a90e2; }}
+            VKLineEdit:focus, QLineEdit:focus {{ border-color: #4a90e2; }}
             QPushButton#btn_confirm {{
                 background-color: #00aa66; color: #fff;
                 border: none; border-radius: {pw(8)}px;
@@ -436,7 +486,7 @@ class AdminPasswordDialog(QDialog):
         title.setStyleSheet(f"font-size: {pf(18)}px; font-weight: bold; color: #333333; border: none;")
         root.addWidget(title)
 
-        self.password_input = QLineEdit()
+        self.password_input = VKLineEdit()
         self.password_input.setPlaceholderText("Enter admin password")
         self.password_input.setEchoMode(QLineEdit.Password)
         self.password_input.returnPressed.connect(self.accept)
