@@ -14,8 +14,7 @@ import os
 os.environ['GLOG_minloglevel'] = '2'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 os.environ['QT_LOGGING_RULES'] = '*.debug=false;qt.accessibility.atspi.warning=false'
-# Tell Qt not to fight with the system input method — we manage keyboard visibility manually
-os.environ.setdefault('QT_IM_MODULE', 'none')
+# Qt handles system input methods natively
 
 import sys
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
@@ -70,77 +69,6 @@ def pf(n): w, h = _scr(); return max(8, int(n * min(w, h) / 480))
 
 
 
-class VKLineEdit(QLineEdit):
-    """
-    QLineEdit for touchscreen kiosks.
-    On focus, triggers the system virtual keyboard using the best available
-    method for the current environment (squeekboard on Wayland, onboard on X11).
-    Keys from these keyboards generate real OS-level events so they work with
-    any Qt widget without any special plugin.
-    """
-    _kb_proc = None  # shared subprocess across all instances
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.setAttribute(Qt.WA_InputMethodEnabled, True)
-
-    def focusInEvent(self, event):
-        super().focusInEvent(event)
-        self._show_keyboard()
-
-    @classmethod
-    def _show_keyboard(cls):
-        """
-        Try each keyboard strategy in priority order and stop at first success.
-
-        Strategy 1 — squeekboard (dbus): default on RPi OS Bookworm / Wayland.
-        Strategy 2 — onboard: most reliable on X11; install with:
-                       sudo apt install onboard
-        Strategy 3 — matchbox-keyboard: lightweight X11 alternative:
-                       sudo apt install matchbox-keyboard
-        """
-        # Strategy 1: squeekboard via dbus (Wayland / RPi OS Bookworm)
-        try:
-            subprocess.Popen(
-                ['dbus-send', '--session', '--type=method_call',
-                 '--dest=sm.puri.OSK0', '/sm/puri/OSK0',
-                 'sm.puri.OSK0.SetVisible', 'boolean:true'],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            )
-            return
-        except Exception:
-            pass
-
-        # Strategy 2 & 3: launch onboard or matchbox-keyboard (X11)
-        # Only launch once; reuse the process if still alive.
-        if cls._kb_proc is not None and cls._kb_proc.poll() is None:
-            return  # already running
-
-        for cmd in (['onboard', '--size=medium'],
-                    ['matchbox-keyboard']):
-            try:
-                cls._kb_proc = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-                return
-            except FileNotFoundError:
-                continue
-
-        # Last resort: Qt built-in input method (only works if qtvirtualkeyboard plugin installed)
-        try:
-            im = QApplication.instance().inputMethod()
-            if im:
-                im.show()
-        except Exception:
-            pass
-
-    def focusOutEvent(self, event):
-        super().focusOutEvent(event)
-        # Let the system manage keyboard hiding
-
-
 
 class TextInputDialog(QDialog):
     """
@@ -163,7 +91,7 @@ class TextInputDialog(QDialog):
                 border: none;
             }}
             QLabel {{ color: #333333; font-size: {pf(14)}px; }}
-            VKLineEdit, QLineEdit {{
+            QLineEdit {{
                 background-color: #f9f9f9;
                 color: #000000;
                 border: 2px solid #dddddd;
@@ -171,7 +99,7 @@ class TextInputDialog(QDialog):
                 padding: {ph(8)}px {pw(12)}px;
                 font-size: {pf(18)}px;
             }}
-            VKLineEdit:focus, QLineEdit:focus {{ border-color: #4a90e2; }}
+            QLineEdit:focus {{ border-color: #4a90e2; }}
             QPushButton#btn_confirm {{
                 background-color: #00aa66; color: #fff;
                 border: none; border-radius: {pw(8)}px;
@@ -192,8 +120,8 @@ class TextInputDialog(QDialog):
         container = QFrame()
         container.setStyleSheet(f"""
             QFrame {{
-                background-color: #252542;
-                border: 2px solid #9B59B6;
+                background-color: #ffffff;
+                border: 2px solid #e0e0e0;
                 border-radius: {pw(12)}px;
             }}
         """)
@@ -209,7 +137,7 @@ class TextInputDialog(QDialog):
         if label:
             root.addWidget(QLabel(label))
 
-        self.input = VKLineEdit()
+        self.input = QLineEdit()
         self.input.setPlaceholderText(placeholder or title)
         self.input.setEchoMode(echo_mode)
         self.input.returnPressed.connect(self.accept)
@@ -508,7 +436,7 @@ class AdminPasswordDialog(QDialog):
         title.setStyleSheet(f"font-size: {pf(18)}px; font-weight: bold; color: #333333; border: none;")
         root.addWidget(title)
 
-        self.password_input = VKLineEdit()
+        self.password_input = QLineEdit()
         self.password_input.setPlaceholderText("Enter admin password")
         self.password_input.setEchoMode(QLineEdit.Password)
         self.password_input.returnPressed.connect(self.accept)
