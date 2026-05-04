@@ -177,9 +177,6 @@ class CameraThread(QThread):
         self._running = False
         self.picam2 = None
         self.mirror = mirror
-        # Frame skip counter for Pi 4 CPU relief
-        self._frame_counter = 0
-        self._skip_frames = getattr(config, 'CAMERA_FRAME_SKIP', 1)  # emit every Nth frame
 
     @staticmethod
     def _get_libcamera_rotation(degrees: int) -> libcamera.Transform:
@@ -215,14 +212,16 @@ class CameraThread(QThread):
             try:
                 rot_enum = self._get_libcamera_rotation(rotation_degrees)
                 transform = libcamera.Transform(rotation=rot_enum, hflip=hflip, vflip=0)
+                # Hardware handles rotation — no per-frame software work needed.
                 print(f"✓ Camera rotation {rotation_degrees}° set via libcamera.Transform (hardware)")
+                rotation_degrees = 0  # zero out so the loop's cv2.rotate block is skipped
             except (AttributeError, TypeError):
-                # Older libcamera builds may not expose Rotation* enums;
-                # fall back to identity transform and warn.
+                # Older libcamera builds (vc4 pipeline / Bullseye) don't expose
+                # Rotation* enums.  Keep rotation_degrees intact so the per-frame
+                # cv2.rotate() fallback below applies it correctly.
                 print(f"⚠️  libcamera.Transform does not support rotation enum on this build.")
                 print(f"   Falling back to software rotation for {rotation_degrees}°.")
                 transform = libcamera.Transform(hflip=hflip, vflip=0)
-                rotation_degrees = 0  # handled in fallback below
 
             preview_config = self.picam2.create_preview_configuration(
                 main={"size": config.CAMERA_RESOLUTION, "format": "RGB888"},
@@ -257,11 +256,7 @@ class CameraThread(QThread):
                     elif rotation_degrees == 270:
                         frame_rgb = cv2.rotate(frame_rgb, cv2.ROTATE_90_COUNTERCLOCKWISE)
 
-                    # Frame-skip: emit only every Nth captured frame to reduce
-                    # downstream processing load on Pi 4.
-                    self._frame_counter += 1
-                    if self._frame_counter % self._skip_frames == 0:
-                        self.frame_ready.emit(frame_rgb)
+                    self.frame_ready.emit(frame_rgb)
 
                     time.sleep(frame_interval)
 

@@ -31,7 +31,6 @@ ENABLE_LIVENESS = False  # Blink detection
 CAMERA_RESOLUTION = (640, 640)
 CAMERA_FPS = 15           # Pi 4 safe value (Pi 5 could run 30-60)
 CAMERA_ROTATION = 90      # Applied once at camera init via libcamera.Transform
-CAMERA_FRAME_SKIP = 2     # Emit every 2nd captured frame → halves processing load
 
 # ★★★ INSIGHTFACE MODEL SETTINGS ★★★
 # buffalo_sc is the only practical choice on Pi 4 (buffalo_l is too slow).
