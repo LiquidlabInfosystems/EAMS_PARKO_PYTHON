@@ -2,7 +2,7 @@
 InsightFace Engine Module
 Unified face detection + embedding extraction using InsightFace
 Replaces MediaPipe (detection) + MobileFaceNet (encoding)
-Optimized for Raspberry Pi 5 (CPU inference)
+Optimized for Raspberry Pi 4 (CPU inference)
 """
 
 import warnings
@@ -17,10 +17,10 @@ class InsightFaceEngine:
     """
     Face detection and embedding extraction using InsightFace.
     
-    - Uses FaceAnalysis (buffalo_sc for RPi5, buffalo_l for GPU devices)
+    - Uses FaceAnalysis (buffalo_sc for RPi4, buffalo_l for GPU devices)
     - Produces 512-D L2-normalized embeddings
     - Provides same interface as FaceDetector + FaceEncoder combined
-    - Works on Raspberry Pi 5 with CPU inference
+    - Works on Raspberry Pi 4 with CPU inference
     """
     
     def __init__(self, 
@@ -80,7 +80,7 @@ class InsightFaceEngine:
                 print("   GPU (CUDA) detected")
                 return ['CUDAExecutionProvider', 'CPUExecutionProvider']
             else:
-                print("   Using CPU inference (Raspberry Pi 5)")
+                print("   Using CPU inference (Raspberry Pi 4)")
                 return ['CPUExecutionProvider']
         except Exception:
             return ['CPUExecutionProvider']

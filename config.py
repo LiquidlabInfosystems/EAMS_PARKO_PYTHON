@@ -1,6 +1,6 @@
 """
 Configuration file for Attendance System
-InsightFace Edition - Raspberry Pi 5
+InsightFace Edition - Raspberry Pi 4
 """
 
 # ★★★ API CONFIGURATION ★★★
@@ -25,14 +25,21 @@ API_STORAGE_FILE = "failed_api_requests.json"
 ENABLE_LIVENESS = False  # Blink detection
 
 # ★★★ CAMERA SETTINGS ★★★
-CAMERA_RESOLUTION = (640, 640) 
-CAMERA_FPS = 60   
-CAMERA_ROTATION = 90  # Set to 90 to match your screen rotation
+# Pi 4 note: 640×640 @ 15 FPS is a safe operating point.
+# Rotation is applied at libcamera ISP level (not per-frame in Python),
+# so changing CAMERA_ROTATION has zero CPU cost at runtime.
+CAMERA_RESOLUTION = (640, 640)
+CAMERA_FPS = 15           # Pi 4 safe value (Pi 5 could run 30-60)
+CAMERA_ROTATION = 90      # Applied once at camera init via libcamera.Transform
+CAMERA_FRAME_SKIP = 2     # Emit every 2nd captured frame → halves processing load
 
 # ★★★ INSIGHTFACE MODEL SETTINGS ★★★
-INSIGHTFACE_MODEL = 'buffalo_sc'          # Model pack: 'buffalo_l' (accurate) or 'buffalo_sc' (faster)
-INSIGHTFACE_DET_SIZE = (640, 640)        # Detection input size (smaller = faster on RPi5)
-INSIGHTFACE_PROVIDERS = None             # None = auto-detect (CPU on RPi5, CUDA on Jetson)
+# buffalo_sc is the only practical choice on Pi 4 (buffalo_l is too slow).
+# Halving det_size from 640→320 cuts inference time roughly 4× with minimal
+# accuracy drop for normal webcam distances.
+INSIGHTFACE_MODEL = 'buffalo_sc'          # Must use 'buffalo_sc' on Pi 4 (buffalo_l too slow)
+INSIGHTFACE_DET_SIZE = (320, 320)        # Smaller = faster; 320×320 is Pi 4 sweet-spot
+INSIGHTFACE_PROVIDERS = None             # None = auto-detect (CPU on Pi 4, CUDA on Jetson)
 
 # ★★★ RECOGNITION SETTINGS ★★★
 DETECTION_CONFIDENCE = 0.5

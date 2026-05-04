@@ -168,7 +168,7 @@ class NotificationOverlay(QWidget):
 
 
 class CameraThread(QThread):
-    """Camera thread - optimized"""
+    """Camera thread - optimized for Raspberry Pi 4"""
     frame_ready = Signal(np.ndarray)
     status_update = Signal(str)
 
@@ -177,13 +177,52 @@ class CameraThread(QThread):
         self._running = False
         self.picam2 = None
         self.mirror = mirror
+        # Frame skip counter for Pi 4 CPU relief
+        self._frame_counter = 0
+        self._skip_frames = getattr(config, 'CAMERA_FRAME_SKIP', 1)  # emit every Nth frame
+
+    @staticmethod
+    def _get_libcamera_rotation(degrees: int) -> libcamera.Transform:
+        """
+        Build a libcamera.Transform that includes both the horizontal flip
+        (mirror) and the requested rotation angle.
+
+        libcamera.Transform supports rotation via the `rotation` parameter
+        (0, 90, 180, 270 degrees). Rotation is applied at the ISP level so
+        no per-frame cv2 work is needed.
+        """
+        # libcamera rotation enum values
+        rotation_map = {
+            0:   libcamera.Transform.Rotation0,
+            90:  libcamera.Transform.Rotation90,
+            180: libcamera.Transform.Rotation180,
+            270: libcamera.Transform.Rotation270,
+        }
+        rot = rotation_map.get(degrees % 360, libcamera.Transform.Rotation0)
+        return rot
 
     def run(self):
-        """Capture frames in RGB888"""
+        """Capture frames in RGB888 with hardware rotation applied at init."""
         try:
             self.picam2 = Picamera2()
 
-            transform = libcamera.Transform(hflip=1 if self.mirror else 0, vflip=0)
+            # ── Rotation is applied ONCE here at camera init via libcamera ──
+            # Using libcamera.Transform avoids expensive cv2.rotate() on every
+            # frame, which matters a lot on the slower Pi 4 CPU.
+            rotation_degrees = getattr(config, 'CAMERA_ROTATION', 0)
+            hflip = 1 if self.mirror else 0
+
+            try:
+                rot_enum = self._get_libcamera_rotation(rotation_degrees)
+                transform = libcamera.Transform(rotation=rot_enum, hflip=hflip, vflip=0)
+                print(f"✓ Camera rotation {rotation_degrees}° set via libcamera.Transform (hardware)")
+            except (AttributeError, TypeError):
+                # Older libcamera builds may not expose Rotation* enums;
+                # fall back to identity transform and warn.
+                print(f"⚠️  libcamera.Transform does not support rotation enum on this build.")
+                print(f"   Falling back to software rotation for {rotation_degrees}°.")
+                transform = libcamera.Transform(hflip=hflip, vflip=0)
+                rotation_degrees = 0  # handled in fallback below
 
             preview_config = self.picam2.create_preview_configuration(
                 main={"size": config.CAMERA_RESOLUTION, "format": "RGB888"},
@@ -199,25 +238,32 @@ class CameraThread(QThread):
             })
 
             self.picam2.start()
-            time.sleep(0.3)
+            time.sleep(0.5)  # slightly longer warm-up helps Pi 4 AE settle
 
             self._running = True
             self.status_update.emit("✅ Camera Ready")
 
+            frame_interval = 1.0 / max(config.CAMERA_FPS, 1)
+
             while self._running:
                 try:
                     frame_rgb = self.picam2.capture_array()
-                    
-                    rotation = getattr(config, 'CAMERA_ROTATION', 0)
-                    if rotation == 90:
+
+                    # Software rotation fallback (only if hw rotation unavailable)
+                    if rotation_degrees == 90:
                         frame_rgb = cv2.rotate(frame_rgb, cv2.ROTATE_90_CLOCKWISE)
-                    elif rotation == 180:
+                    elif rotation_degrees == 180:
                         frame_rgb = cv2.rotate(frame_rgb, cv2.ROTATE_180)
-                    elif rotation == 270:
+                    elif rotation_degrees == 270:
                         frame_rgb = cv2.rotate(frame_rgb, cv2.ROTATE_90_COUNTERCLOCKWISE)
 
-                    self.frame_ready.emit(frame_rgb)
-                    time.sleep(1.0 / config.CAMERA_FPS)
+                    # Frame-skip: emit only every Nth captured frame to reduce
+                    # downstream processing load on Pi 4.
+                    self._frame_counter += 1
+                    if self._frame_counter % self._skip_frames == 0:
+                        self.frame_ready.emit(frame_rgb)
+
+                    time.sleep(frame_interval)
 
                 except Exception as e:
                     print(f"Capture error: {e}")
