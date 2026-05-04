@@ -952,6 +952,21 @@ class AttendanceKioskGUI(QMainWindow):
         self.update_styles()
 
         self.showFullScreen()
+        
+        # Execute the Wayland rotation script after GUI is visible
+        QTimer.singleShot(1000, self._rotate_screen)
+
+    def _rotate_screen(self):
+        """Automatically rotate the screen layout after OS boot if needed."""
+        try:
+            import subprocess
+            import os
+            script_path = os.path.join(os.path.dirname(__file__), "rotate_screen.sh")
+            if os.path.exists(script_path):
+                subprocess.Popen(["bash", script_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                print("🔄 Triggered screen rotation script")
+        except Exception as e:
+            print(f"⚠️ Failed to trigger screen rotation script: {e}")
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
