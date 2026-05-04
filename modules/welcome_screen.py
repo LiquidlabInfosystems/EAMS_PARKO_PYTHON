@@ -67,10 +67,10 @@ class WelcomeScreen(QWidget):
         
     def init_ui(self):
         """Initialize the user interface"""
-        # Main layout with 40px margins
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(40, 40, 40, 40)
-        main_layout.setSpacing(0)
+        # Main layout
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(40, 40, 40, 40)
+        self.main_layout.setSpacing(0)
         
         # ===== CLOCK AT TOP =====
         clock_layout = QHBoxLayout()
@@ -89,8 +89,8 @@ class WelcomeScreen(QWidget):
         clock_layout.addWidget(self.time_label)
         clock_layout.addStretch()
         
-        main_layout.addLayout(clock_layout)
-        main_layout.addSpacing(10)
+        self.main_layout.addLayout(clock_layout)
+        self.main_layout.addSpacing(10)
         
         # Date label
         self.date_label = QLabel()
@@ -102,13 +102,13 @@ class WelcomeScreen(QWidget):
             font-family: 'Inter', 'SF Pro Display', 'Segoe UI', 'Roboto', sans-serif;
             background: transparent;
         """)
-        main_layout.addWidget(self.date_label)
+        self.main_layout.addWidget(self.date_label)
         
         # Update clock immediately
         self._update_clock()
         
         # Top stretch
-        main_layout.addStretch(2)
+        self.main_layout.addStretch(2)
         
         # Logo placeholder (drawn in paintEvent if available)
         if self.logo_pixmap:
@@ -116,8 +116,8 @@ class WelcomeScreen(QWidget):
             self.logo_label.setAlignment(Qt.AlignCenter)
             self.logo_label.setPixmap(self.logo_pixmap)
             self.logo_label.setStyleSheet("background: transparent;")
-            main_layout.addWidget(self.logo_label)
-            main_layout.addSpacing(20)
+            self.main_layout.addWidget(self.logo_label)
+            self.main_layout.addSpacing(20)
         
         # Subtitle - "Employee Attendance Management System"
         self.subtitle_label = QLabel("Employee Attendance Management System")
@@ -132,10 +132,10 @@ class WelcomeScreen(QWidget):
         """)
         self.subtitle_label.setWordWrap(True)
         self.subtitle_label.setMinimumWidth(10)
-        main_layout.addWidget(self.subtitle_label)
+        self.main_layout.addWidget(self.subtitle_label)
         
         # Stretch between logo/subtitle and welcome text
-        main_layout.addStretch(2)
+        self.main_layout.addStretch(2)
         
         # Welcome text - 90px bold dark blue
         self.title_label = QLabel("Welcome")
@@ -151,8 +151,8 @@ class WelcomeScreen(QWidget):
         """)
         self.title_label.setWordWrap(True)
         self.title_label.setMinimumWidth(10)
-        main_layout.addWidget(self.title_label)
-        main_layout.addSpacing(30)
+        self.main_layout.addWidget(self.title_label)
+        self.main_layout.addSpacing(30)
         
         # Instruction with styled container (will have pulse animation)
         self.instruction_label = QLabel("Position your face in front of the camera")
@@ -169,23 +169,89 @@ class WelcomeScreen(QWidget):
         """)
         self.instruction_label.setWordWrap(True)
         self.instruction_label.setMinimumWidth(10)
-        main_layout.addWidget(self.instruction_label)
-        main_layout.addSpacing(20)
+        self.main_layout.addWidget(self.instruction_label)
+        self.main_layout.addSpacing(20)
         
         # Status indicator
         self.status_label = QLabel("Waiting for face detection...")
         self.status_label.setAlignment(Qt.AlignCenter)
-        self.status_label.setStyleSheet(f"""
-            color: {THEME['text_secondary']};
-            font-size: 18px;
-            font-style: italic;
-            padding: 10px;
-            background: transparent;
-        """)
-        main_layout.addWidget(self.status_label)
+        self.main_layout.addWidget(self.status_label)
         
         # Bottom stretch
-        main_layout.addStretch(3)
+        self.main_layout.addStretch(3)
+        
+        # Initial style setup
+        self.update_styles()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.update_styles()
+
+    def update_styles(self):
+        """Update GUI dynamically based on page width and height"""
+        w = self.width()
+        h = self.height()
+        # Scale helpers relative to 480x854 reference
+        def pf(n): return max(8, int(n * min(w, h) / 480))
+        def pw(n): return max(1, int(n * w / 480))
+        def ph(n): return max(1, int(n * h / 854))
+
+        self.main_layout.setContentsMargins(pw(40), ph(40), pw(40), ph(40))
+
+        self.time_label.setStyleSheet(f"""
+            color: {THEME['text_primary']};
+            font-size: {pf(24)}px;
+            font-weight: bold;
+            font-family: 'Inter', 'SF Pro Display', 'Segoe UI', 'Roboto', sans-serif;
+            background: transparent;
+        """)
+
+        self.date_label.setStyleSheet(f"""
+            color: {THEME['text_secondary']};
+            font-size: {pf(14)}px;
+            font-weight: 400;
+            font-family: 'Inter', 'SF Pro Display', 'Segoe UI', 'Roboto', sans-serif;
+            background: transparent;
+        """)
+
+        self.subtitle_label.setStyleSheet(f"""
+            color: {THEME['text_secondary']};
+            font-size: {pf(16)}px;
+            font-weight: 500;
+            font-family: 'Inter', 'SF Pro Display', 'Segoe UI', 'Roboto', sans-serif;
+            padding: {ph(5)}px;
+            background: transparent;
+        """)
+
+        self.title_label.setStyleSheet(f"""
+            color: {THEME['text_primary']};
+            font-size: {pf(32)}px;
+            font-weight: bold;
+            font-family: 'Inter', 'SF Pro Display', 'Segoe UI', 'Roboto', sans-serif;
+            letter-spacing: 1px;
+            padding: {ph(5)}px;
+            background: transparent;
+        """)
+
+        self.instruction_label.setStyleSheet(f"""
+            color: {THEME['accent_secondary']};
+            font-size: {pf(14)}px;
+            font-weight: 400;
+            font-family: 'Inter', 'SF Pro Display', 'Segoe UI', 'Roboto', sans-serif;
+            padding: {ph(8)}px {pw(15)}px;
+            background: rgba(74, 144, 226, 0.1);
+            border: 1px solid rgba(74, 144, 226, 0.3);
+            border-radius: {pw(8)}px;
+        """)
+
+        self.status_label.setStyleSheet(f"""
+            color: {THEME['text_secondary']};
+            font-size: {pf(18)}px;
+            font-style: italic;
+            padding: {ph(10)}px;
+            background: transparent;
+        """)
+
     
     def _update_animation(self):
         """Update animation state and clock"""

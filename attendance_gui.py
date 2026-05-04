@@ -52,6 +52,10 @@ import config
 def _scr():
     app = QApplication.instance()
     if app:
+        # First try to get the main window's size
+        for w in app.topLevelWidgets():
+            if w.objectName() == "MainWindow" or w.__class__.__name__ == "AttendanceKioskGUI":
+                return w.width(), w.height()
         s = app.primaryScreen()
         if s:
             g = s.availableGeometry()
@@ -62,6 +66,7 @@ def pw(n): w, h = _scr(); return max(1, int(n * w / 480))
 def ph(n): w, h = _scr(); return max(1, int(n * h / 854))
 def pf(n): w, h = _scr(); return max(8, int(n * min(w, h) / 480))
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 
 
@@ -795,55 +800,26 @@ class AttendanceKioskGUI(QMainWindow):
         api_status = f"📡 API: {config.API_SERVER_IP}" if config.API_ENABLED else "○ API Disabled"
 
         self.setWindowTitle(f"Employee Attendance System - {liveness_status} | {api_status}")
-        self.setStyleSheet("""
-            QMainWindow { background-color: #1a1a1a; }
-            QLabel#title { color: #ffffff; font-size: 18px; font-weight: bold; padding: 10px; }
-            QLabel#status { color: #00ff88; font-size: 14px; padding: 5px; }
-            QLabel#instruction { color: #00ff88; font-size: 16px; font-weight: bold; padding: 8px; }
-            QLabel#feedback { color: #ffffff; font-size: 14px; font-weight: bold; padding: 5px; }
-            QLabel#camera { background-color: #000000; border: 3px solid #00ff88; border-radius: 10px; }
-            QPushButton {
-                background-color: #2d2d2d; color: #ffffff; border: 2px solid #4d4d4d;
-                border-radius: 8px; font-size: 14px; font-weight: bold; padding: 8px; min-height: 40px;
-            }
-            QPushButton:hover { background-color: #3d3d3d; border-color: #00ff88; }
-            QPushButton:pressed { background-color: #1d1d1d; }
-            QPushButton#timeIn { border-color: #4a90e2; }
-            QPushButton#timeOut { border-color: #e24a4a; }
-            QPushButton#breakIn { border-color: #f5a623; }
-            QPushButton#breakOut { border-color: #ff8c00; }
-            QPushButton#jobIn { border-color: #bd10e0; }
-            QPushButton#jobOut { border-color: #9b10c0; }
-            QPushButton#addFace { border-color: #50c878; }
-            QPushButton#capture { background-color: #4a90e2; border-color: #6ab0ff; font-size: 18px; }
-            QPushButton#cancelReg { background-color: #cc3333; border-color: #ff4444; font-size: 18px; }
-            QFrame#buttonContainer { background-color: #0d0d0d; border-top: 3px solid #00ff88; padding: 10px; }
-            QProgressBar {
-                border: 2px solid #4a90e2; border-radius: 5px; text-align: center;
-                color: #ffffff; font-weight: bold; min-height: 30px; font-size: 16px;
-            }
-            QProgressBar::chunk { background-color: #00ff88; }
-        """)
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
-        main_layout = QVBoxLayout(central_widget)
-        main_layout.setContentsMargins(10, 10, 10, 10)
-        main_layout.setSpacing(5)
+        self.main_layout = QVBoxLayout(central_widget)
+        self.main_layout.setContentsMargins(10, 10, 10, 10)
+        self.main_layout.setSpacing(5)
 
         self.title_label = QLabel("Employee Attendance Management System")
         self.title_label.setObjectName("title")
         self.title_label.setAlignment(Qt.AlignCenter)
         self.title_label.setWordWrap(True)
         self.title_label.setMinimumWidth(10)
-        main_layout.addWidget(self.title_label)
+        self.main_layout.addWidget(self.title_label)
 
         self.status_label = QLabel("Starting...")
         self.status_label.setObjectName("status")
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setWordWrap(True)
         self.status_label.setMinimumWidth(10)
-        main_layout.addWidget(self.status_label)
+        self.main_layout.addWidget(self.status_label)
 
         self.instruction_label = QLabel("")
         self.instruction_label.setObjectName("instruction")
@@ -851,13 +827,13 @@ class AttendanceKioskGUI(QMainWindow):
         self.instruction_label.setWordWrap(True)
         self.instruction_label.setMinimumWidth(10)
         self.instruction_label.setVisible(False)
-        main_layout.addWidget(self.instruction_label)
+        self.main_layout.addWidget(self.instruction_label)
 
         self.feedback_label = QLabel("")
         self.feedback_label.setObjectName("feedback")
         self.feedback_label.setAlignment(Qt.AlignCenter)
         self.feedback_label.setVisible(False)
-        main_layout.addWidget(self.feedback_label)
+        self.main_layout.addWidget(self.feedback_label)
 
         # Stacked widget for welcome screen and camera feed
         self.display_stack = QStackedWidget()
@@ -877,7 +853,7 @@ class AttendanceKioskGUI(QMainWindow):
         # Start with welcome screen
         self.display_stack.setCurrentIndex(0)
 
-        main_layout.addWidget(self.display_stack, stretch=1)
+        self.main_layout.addWidget(self.display_stack, stretch=1)
 
         self.progress_bar = QProgressBar()
         self.progress_bar.setMinimum(0)
@@ -885,7 +861,7 @@ class AttendanceKioskGUI(QMainWindow):
         self.progress_bar.setValue(0)
         self.progress_bar.setFormat(f"Accepted: %v of {len(self.registration_steps)}")
         self.progress_bar.setVisible(False)
-        main_layout.addWidget(self.progress_bar)
+        self.main_layout.addWidget(self.progress_bar)
 
         # Normal buttons
         self.button_frame = QFrame()
@@ -936,7 +912,7 @@ class AttendanceKioskGUI(QMainWindow):
         self.add_face_btn.setCursor(Qt.PointingHandCursor)
         button_layout.addWidget(self.add_face_btn, 3, 0, 1, 2)
 
-        main_layout.addWidget(self.button_frame)
+        self.main_layout.addWidget(self.button_frame)
 
         # Registration buttons
         self.reg_button_frame = QFrame()
@@ -958,12 +934,66 @@ class AttendanceKioskGUI(QMainWindow):
         reg_button_layout.addWidget(self.cancel_reg_btn)
 
         self.reg_button_frame.setVisible(False)
-        main_layout.addWidget(self.reg_button_frame)
+        self.main_layout.addWidget(self.reg_button_frame)
 
         # Initially hide buttons
         self.button_frame.setVisible(False)
+        self.update_styles()
 
         self.showFullScreen()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.update_styles()
+
+    def update_styles(self):
+        """Update GUI elements relative to actual window width and height."""
+        w = self.width()
+        h = self.height()
+        def _pf(n): return max(8, int(n * min(w, h) / 480))
+        def _pw(n): return max(1, int(n * w / 480))
+        def _ph(n): return max(1, int(n * h / 854))
+
+        self.setStyleSheet(f"""
+            QMainWindow {{ background-color: #1a1a1a; }}
+            QLabel#title {{ color: #ffffff; font-size: {_pf(18)}px; font-weight: bold; padding: {_ph(10)}px; }}
+            QLabel#status {{ color: #00ff88; font-size: {_pf(14)}px; padding: {_ph(5)}px; }}
+            QLabel#instruction {{ color: #00ff88; font-size: {_pf(16)}px; font-weight: bold; padding: {_ph(8)}px; }}
+            QLabel#feedback {{ color: #ffffff; font-size: {_pf(14)}px; font-weight: bold; padding: {_ph(5)}px; }}
+            QLabel#camera {{ background-color: #000000; border: 3px solid #00ff88; border-radius: {_pw(10)}px; }}
+            QPushButton {{
+                background-color: #2d2d2d; color: #ffffff; border: 2px solid #4d4d4d;
+                border-radius: {_pw(8)}px; font-size: {_pf(14)}px; font-weight: bold; padding: {_ph(8)}px; min-height: {_ph(40)}px;
+            }}
+            QPushButton:hover {{ background-color: #3d3d3d; border-color: #00ff88; }}
+            QPushButton:pressed {{ background-color: #1d1d1d; }}
+            QPushButton#timeIn {{ border-color: #4a90e2; }}
+            QPushButton#timeOut {{ border-color: #e24a4a; }}
+            QPushButton#breakIn {{ border-color: #f5a623; }}
+            QPushButton#breakOut {{ border-color: #ff8c00; }}
+            QPushButton#jobIn {{ border-color: #bd10e0; }}
+            QPushButton#jobOut {{ border-color: #9b10c0; }}
+            QPushButton#addFace {{ border-color: #50c878; }}
+            QPushButton#capture {{ background-color: #4a90e2; border-color: #6ab0ff; font-size: {_pf(18)}px; }}
+            QPushButton#cancelReg {{ background-color: #cc3333; border-color: #ff4444; font-size: {_pf(18)}px; }}
+            QFrame#buttonContainer {{ background-color: #0d0d0d; border-top: 3px solid #00ff88; padding: {_ph(10)}px; }}
+            QProgressBar {{
+                border: 2px solid #4a90e2; border-radius: {_pw(5)}px; text-align: center;
+                color: #ffffff; font-weight: bold; min-height: {_ph(30)}px; font-size: {_pf(16)}px;
+            }}
+            QProgressBar::chunk {{ background-color: #00ff88; }}
+        """)
+
+        # Adjust main layout spacing dynamically
+        self.main_layout.setContentsMargins(_pw(10), _ph(10), _pw(10), _ph(10))
+        self.main_layout.setSpacing(_ph(5))
+        
+        # We can also update feedback label manually if it has overrides
+        if self.feedback_label.text().startswith("✅"):
+            self.feedback_label.setStyleSheet(f"color: #00ff88; font-size: {_pf(20)}px; font-weight: bold; padding: {_ph(10)}px;")
+        elif self.feedback_label.text().startswith("❌"):
+            self.feedback_label.setStyleSheet(f"color: #ff4444; font-size: {_pf(20)}px; font-weight: bold; padding: {_ph(10)}px;")
+
 
     def init_camera(self):
         """Initialize camera"""
