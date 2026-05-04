@@ -44,6 +44,26 @@ import subprocess
 
 import config
 
+# ── Screen-relative scaling helpers ──────────────────────────────────────────
+# Reference: 480 × 854  (portrait RPi 7" touchscreen)
+# pw(n) → scale a width-related pixel value
+# ph(n) → scale a height-related pixel value
+# pf(n) → scale a font-size (uses the shorter axis so text stays readable)
+def _scr():
+    app = QApplication.instance()
+    if app:
+        s = app.primaryScreen()
+        if s:
+            g = s.availableGeometry()
+            return g.width(), g.height()
+    return 480, 854
+
+def pw(n): w, h = _scr(); return max(1, int(n * w / 480))
+def ph(n): w, h = _scr(); return max(1, int(n * h / 854))
+def pf(n): w, h = _scr(); return max(8, int(n * min(w, h) / 480))
+# ─────────────────────────────────────────────────────────────────────────────
+
+
 
 class VKLineEdit(QLineEdit):
     """
@@ -119,54 +139,53 @@ class VKLineEdit(QLineEdit):
 
 class TextInputDialog(QDialog):
     """
-    Compact styled text-input dialog that uses VKLineEdit so the system
-    virtual keyboard appears automatically on touch.
-    Replaces QInputDialog.getText() for kiosk use.
+    Compact styled text-input dialog using VKLineEdit.
+    All dimensions scale with the actual screen resolution.
     """
     def __init__(self, parent=None, title="Enter Text", label="",
                  echo_mode=QLineEdit.Normal, placeholder=""):
         super().__init__(parent)
         self.setWindowTitle(title)
         self.setModal(True)
-        self.setFixedSize(420, 190)
+        self.setFixedSize(pw(420), ph(200))
         self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
-        self.setStyleSheet("""
-            QDialog {
+        self.setStyleSheet(f"""
+            QDialog {{
                 background-color: #1a1a2e;
                 border: 2px solid #9B59B6;
-                border-radius: 12px;
-            }
-            QLabel { color: #E8D5F5; font-size: 14px; }
-            VKLineEdit, QLineEdit {
+                border-radius: {pw(12)}px;
+            }}
+            QLabel {{ color: #E8D5F5; font-size: {pf(14)}px; }}
+            VKLineEdit, QLineEdit {{
                 background-color: #2D1B4E;
                 color: #E8D5F5;
                 border: 2px solid #6C3483;
-                border-radius: 8px;
-                padding: 8px 12px;
-                font-size: 18px;
-            }
-            VKLineEdit:focus, QLineEdit:focus { border-color: #9B59B6; }
-            QPushButton#btn_confirm {
+                border-radius: {pw(8)}px;
+                padding: {ph(8)}px {pw(12)}px;
+                font-size: {pf(18)}px;
+            }}
+            VKLineEdit:focus, QLineEdit:focus {{ border-color: #9B59B6; }}
+            QPushButton#btn_confirm {{
                 background-color: #8E44AD; color: #fff;
-                border: none; border-radius: 8px;
-                font-size: 14px; font-weight: bold; padding: 9px;
-            }
-            QPushButton#btn_confirm:pressed { background-color: #6C3483; }
-            QPushButton#btn_cancel {
+                border: none; border-radius: {pw(8)}px;
+                font-size: {pf(14)}px; font-weight: bold; padding: {ph(9)}px;
+            }}
+            QPushButton#btn_confirm:pressed {{ background-color: #6C3483; }}
+            QPushButton#btn_cancel {{
                 background-color: transparent; color: #A569BD;
-                border: 1px solid #6C3483; border-radius: 8px;
-                font-size: 14px; padding: 9px;
-            }
-            QPushButton#btn_cancel:pressed { background-color: #2D1B4E; }
+                border: 1px solid #6C3483; border-radius: {pw(8)}px;
+                font-size: {pf(14)}px; padding: {ph(9)}px;
+            }}
+            QPushButton#btn_cancel:pressed {{ background-color: #2D1B4E; }}
         """)
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(18, 14, 18, 12)
-        root.setSpacing(8)
+        root.setContentsMargins(pw(18), ph(14), pw(18), ph(12))
+        root.setSpacing(ph(8))
 
         title_lbl = QLabel(title)
         title_lbl.setAlignment(Qt.AlignCenter)
-        title_lbl.setStyleSheet("font-size: 15px; font-weight: bold;")
+        title_lbl.setStyleSheet(f"font-size: {pf(15)}px; font-weight: bold; color: #E8D5F5;")
         root.addWidget(title_lbl)
 
         if label:
@@ -179,7 +198,7 @@ class TextInputDialog(QDialog):
         root.addWidget(self.input)
 
         btn_row = QHBoxLayout()
-        btn_row.setSpacing(8)
+        btn_row.setSpacing(pw(8))
         cancel_btn = QPushButton("Cancel")
         cancel_btn.setObjectName("btn_cancel")
         cancel_btn.clicked.connect(self.reject)
@@ -194,6 +213,8 @@ class TextInputDialog(QDialog):
 
     def get_text(self) -> str:
         return self.input.text()
+
+
 
 
 class NotificationOverlay(QWidget):
@@ -227,19 +248,19 @@ class NotificationOverlay(QWidget):
         """)
 
         container_layout = QVBoxLayout(self.container)
-        container_layout.setSpacing(20)
+        container_layout.setSpacing(ph(14))
 
         self.icon_label = QLabel("✅")
         self.icon_label.setAlignment(Qt.AlignCenter)
-        self.icon_label.setStyleSheet("font-size: 72px;")
+        self.icon_label.setStyleSheet(f"font-size: {pf(60)}px;")
 
         self.title_label = QLabel("SUCCESS")
         self.title_label.setAlignment(Qt.AlignCenter)
-        self.title_label.setStyleSheet("font-size: 36px; font-weight: bold;")
+        self.title_label.setStyleSheet(f"font-size: {pf(30)}px; font-weight: bold;")
 
         self.message_label = QLabel("")
         self.message_label.setAlignment(Qt.AlignCenter)
-        self.message_label.setStyleSheet("font-size: 24px;")
+        self.message_label.setStyleSheet(f"font-size: {pf(20)}px;")
         self.message_label.setWordWrap(True)
 
         container_layout.addWidget(self.icon_label)
@@ -404,54 +425,53 @@ class CameraThread(QThread):
         self.wait()
 
 class AdminPasswordDialog(QDialog):
-    """Simple admin-password modal. Uses the system keyboard for input."""
+    """Admin-password modal. All sizes scale with screen resolution."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Admin Authentication")
         self.setModal(True)
-        self.setFixedSize(420, 220)
+        self.setFixedSize(pw(420), ph(230))
         self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
-        self.setStyleSheet("""
-            QDialog {
+        self.setStyleSheet(f"""
+            QDialog {{
                 background-color: #1a1a2e;
                 border: 2px solid #9B59B6;
-                border-radius: 12px;
-            }
-            QLabel { color: #E8D5F5; font-size: 15px; }
-            QLabel#dlg_error { color: #E74C3C; font-size: 12px; min-height: 16px; }
-            QLineEdit {
+                border-radius: {pw(12)}px;
+            }}
+            QLabel {{ color: #E8D5F5; font-size: {pf(15)}px; }}
+            QLabel#dlg_error {{ color: #E74C3C; font-size: {pf(12)}px; min-height: {ph(16)}px; }}
+            QLineEdit {{
                 background-color: #2D1B4E;
                 color: #E8D5F5;
                 border: 2px solid #6C3483;
-                border-radius: 8px;
-                padding: 8px 12px;
-                font-size: 20px;
+                border-radius: {pw(8)}px;
+                padding: {ph(8)}px {pw(12)}px;
+                font-size: {pf(20)}px;
                 letter-spacing: 4px;
-            }
-            QLineEdit:focus { border-color: #9B59B6; }
-            QPushButton#btn_confirm {
+            }}
+            QLineEdit:focus {{ border-color: #9B59B6; }}
+            QPushButton#btn_confirm {{
                 background-color: #8E44AD; color: #fff;
-                border: none; border-radius: 8px;
-                font-size: 14px; font-weight: bold; padding: 9px;
-            }
-            QPushButton#btn_confirm:pressed { background-color: #6C3483; }
-            QPushButton#btn_cancel {
+                border: none; border-radius: {pw(8)}px;
+                font-size: {pf(14)}px; font-weight: bold; padding: {ph(9)}px;
+            }}
+            QPushButton#btn_confirm:pressed {{ background-color: #6C3483; }}
+            QPushButton#btn_cancel {{
                 background-color: transparent; color: #A569BD;
-                border: 1px solid #6C3483; border-radius: 8px;
-                font-size: 14px; padding: 9px;
-            }
-            QPushButton#btn_cancel:pressed { background-color: #2D1B4E; }
+                border: 1px solid #6C3483; border-radius: {pw(8)}px;
+                font-size: {pf(14)}px; padding: {ph(9)}px;
+            }}
+            QPushButton#btn_cancel:pressed {{ background-color: #2D1B4E; }}
         """)
 
-        from PySide6.QtWidgets import QLineEdit
         root = QVBoxLayout(self)
-        root.setContentsMargins(18, 16, 18, 14)
-        root.setSpacing(8)
+        root.setContentsMargins(pw(18), ph(16), pw(18), ph(14))
+        root.setSpacing(ph(8))
 
         title = QLabel("🔐  Admin Authentication")
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("font-size: 16px; font-weight: bold;")
+        title.setStyleSheet(f"font-size: {pf(16)}px; font-weight: bold; color: #E8D5F5;")
         root.addWidget(title)
 
         self.password_input = VKLineEdit()
@@ -466,7 +486,7 @@ class AdminPasswordDialog(QDialog):
         root.addWidget(self.error_label)
 
         btn_row = QHBoxLayout()
-        btn_row.setSpacing(8)
+        btn_row.setSpacing(pw(8))
         cancel_btn = QPushButton("Cancel")
         cancel_btn.setObjectName("btn_cancel")
         cancel_btn.clicked.connect(self.reject)
@@ -491,50 +511,48 @@ class AdminPasswordDialog(QDialog):
 
 
 
-class SimpleConfirmationDialog(QDialog):
-    """Confirmation dialog"""
 
+
+class SimpleConfirmationDialog(QDialog):
+    """Confirmation dialog — all sizes scale with screen."""
 
     def __init__(self, parent, person_name, action):
         super().__init__(parent)
         self.person_name = person_name
         self.action = action
-        # Welcome screen state
         self.no_face_timeout = None
-
         self.init_ui()
 
     def init_ui(self):
         self.setWindowTitle("Confirm Identity")
         self.setModal(True)
-        self.setMinimumSize(500, 300)
+        self.setMinimumSize(pw(400), ph(260))
 
-        self.setStyleSheet("""
-            QDialog { background-color: #1a1a1a; }
-            QLabel { color: #ffffff; font-size: 20px; padding: 15px; }
-            QLabel#title { color: #00ff88; font-size: 28px; font-weight: bold; }
-            QLabel#name { color: #4a90e2; font-size: 36px; font-weight: bold; }
-            QLabel#action { color: #f5a623; font-size: 24px; }
-            QPushButton {
-                color: #ffffff; border: 2px solid; border-radius: 10px;
-                font-size: 20px; font-weight: bold; padding: 20px 40px; min-width: 180px;
-            }
-            QPushButton#confirm { background-color: #00aa66; border-color: #00ff88; }
-            QPushButton#confirm:hover { background-color: #00cc77; }
-            QPushButton#cancel { background-color: #cc3333; border-color: #ff4444; }
-            QPushButton#cancel:hover { background-color: #dd4444; }
+        self.setStyleSheet(f"""
+            QDialog {{ background-color: #1a1a1a; }}
+            QLabel {{ color: #ffffff; font-size: {pf(18)}px; padding: {ph(10)}px; }}
+            QLabel#title {{ color: #00ff88; font-size: {pf(24)}px; font-weight: bold; }}
+            QLabel#name  {{ color: #4a90e2; font-size: {pf(30)}px; font-weight: bold; }}
+            QLabel#action {{ color: #f5a623; font-size: {pf(20)}px; }}
+            QPushButton {{
+                color: #ffffff; border: 2px solid; border-radius: {pw(10)}px;
+                font-size: {pf(18)}px; font-weight: bold;
+                padding: {ph(14)}px {pw(24)}px; min-width: {pw(140)}px;
+            }}
+            QPushButton#confirm {{ background-color: #00aa66; border-color: #00ff88; }}
+            QPushButton#confirm:hover {{ background-color: #00cc77; }}
+            QPushButton#cancel  {{ background-color: #cc3333; border-color: #ff4444; }}
+            QPushButton#cancel:hover  {{ background-color: #dd4444; }}
         """)
 
         layout = QVBoxLayout(self)
-        layout.setSpacing(25)
-        layout.setContentsMargins(40, 40, 40, 40)
+        layout.setSpacing(ph(16))
+        layout.setContentsMargins(pw(30), ph(30), pw(30), ph(30))
 
-        title = QLabel("\U000026A0 Confirm Your Identity")
+        title = QLabel("⚠ Confirm Your Identity")
         title.setObjectName("title")
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
-
-        layout.addSpacing(20)
 
         name_label = QLabel(f"👤 {self.person_name}")
         name_label.setObjectName("name")
@@ -546,29 +564,27 @@ class SimpleConfirmationDialog(QDialog):
         action_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(action_label)
 
-        layout.addSpacing(20)
-
         question = QLabel("Is this you?")
         question.setAlignment(Qt.AlignCenter)
-        question.setStyleSheet("font-size: 22px; color: #aaaaaa;")
+        question.setStyleSheet(f"font-size: {pf(18)}px; color: #aaaaaa;")
         layout.addWidget(question)
 
-        layout.addSpacing(30)
-
         button_layout = QHBoxLayout()
-        button_layout.setSpacing(20)
+        button_layout.setSpacing(pw(16))
 
-        confirm_btn = QPushButton("\U00002705 Yes, Confirm")
+        confirm_btn = QPushButton("✅ Yes, Confirm")
         confirm_btn.setObjectName("confirm")
         confirm_btn.clicked.connect(self.accept)
         button_layout.addWidget(confirm_btn)
 
-        cancel_btn = QPushButton("\U0000274C No, Cancel")
+        cancel_btn = QPushButton("❌ No, Cancel")
         cancel_btn.setObjectName("cancel")
         cancel_btn.clicked.connect(self.reject)
         button_layout.addWidget(cancel_btn)
 
         layout.addLayout(button_layout)
+
+
 
 
 class AttendanceKioskGUI(QMainWindow):
