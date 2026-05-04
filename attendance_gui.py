@@ -247,366 +247,90 @@ class CameraThread(QThread):
         self.quit()
         self.wait()
 
-# ─────────────────────────────────────────────────────────────────────────────
-#  Shared on-screen keyboard/keypad styles (used by all three input dialogs)
-# ─────────────────────────────────────────────────────────────────────────────
-_KEYPAD_STYLESHEET = """
-    QDialog {
-        background-color: #1a1a2e;
-        border: 2px solid #9B59B6;
-        border-radius: 14px;
-    }
-    QLabel#dlg_title {
-        color: #E8D5F5;
-        font-size: 18px;
-        font-weight: bold;
-    }
-    QLabel#dlg_display {
-        background-color: #0D0620;
-        color: #E8D5F5;
-        border: 2px solid #6C3483;
-        border-radius: 8px;
-        padding: 8px 12px;
-        font-size: 26px;
-        font-weight: bold;
-        letter-spacing: 3px;
-        min-height: 44px;
-        qproperty-alignment: AlignCenter;
-    }
-    QLabel#dlg_error {
-        color: #E74C3C;
-        font-size: 12px;
-        font-weight: bold;
-        min-height: 16px;
-    }
-    QPushButton#key_digit {
-        background-color: #2D1B4E;
-        color: #E8D5F5;
-        border: 1px solid #6C3483;
-        border-radius: 8px;
-        font-size: 20px;
-        font-weight: bold;
-    }
-    QPushButton#key_digit:pressed { background-color: #6C3483; }
-    QPushButton#key_action {
-        background-color: #1A0A2E;
-        color: #C39BD3;
-        border: 1px solid #6C3483;
-        border-radius: 8px;
-        font-size: 16px;
-    }
-    QPushButton#key_action:pressed { background-color: #2D1B4E; color: #E8D5F5; }
-    QPushButton#key_letter {
-        background-color: #2D1B4E;
-        color: #E8D5F5;
-        border: 1px solid #4A235A;
-        border-radius: 6px;
-        font-size: 15px;
-        font-weight: bold;
-    }
-    QPushButton#key_letter:pressed { background-color: #6C3483; }
-    QPushButton#key_special {
-        background-color: #1A0A2E;
-        color: #C39BD3;
-        border: 1px solid #6C3483;
-        border-radius: 6px;
-        font-size: 13px;
-    }
-    QPushButton#key_special:pressed { background-color: #2D1B4E; color: #E8D5F5; }
-    QPushButton#btn_confirm {
-        background-color: #8E44AD;
-        color: #ffffff;
-        border: none;
-        border-radius: 8px;
-        font-size: 15px;
-        font-weight: bold;
-        padding: 10px 0;
-    }
-    QPushButton#btn_confirm:pressed { background-color: #6C3483; }
-    QPushButton#btn_cancel {
-        background-color: transparent;
-        color: #A569BD;
-        border: 1px solid #6C3483;
-        border-radius: 8px;
-        font-size: 15px;
-        padding: 10px 0;
-    }
-    QPushButton#btn_cancel:pressed { background-color: #2D1B4E; }
-"""
-
-
 class AdminPasswordDialog(QDialog):
-    """Compact admin password dialog with embedded numeric keypad."""
+    """Simple admin-password modal. Uses the system keyboard for input."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._text = ""
         self.setWindowTitle("Admin Authentication")
         self.setModal(True)
-        self.setFixedSize(340, 460)
+        self.setFixedSize(420, 220)
         self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
-        self.setStyleSheet(_KEYPAD_STYLESHEET)
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #1a1a2e;
+                border: 2px solid #9B59B6;
+                border-radius: 12px;
+            }
+            QLabel { color: #E8D5F5; font-size: 15px; }
+            QLabel#dlg_error { color: #E74C3C; font-size: 12px; min-height: 16px; }
+            QLineEdit {
+                background-color: #2D1B4E;
+                color: #E8D5F5;
+                border: 2px solid #6C3483;
+                border-radius: 8px;
+                padding: 8px 12px;
+                font-size: 20px;
+                letter-spacing: 4px;
+            }
+            QLineEdit:focus { border-color: #9B59B6; }
+            QPushButton#btn_confirm {
+                background-color: #8E44AD; color: #fff;
+                border: none; border-radius: 8px;
+                font-size: 14px; font-weight: bold; padding: 9px;
+            }
+            QPushButton#btn_confirm:pressed { background-color: #6C3483; }
+            QPushButton#btn_cancel {
+                background-color: transparent; color: #A569BD;
+                border: 1px solid #6C3483; border-radius: 8px;
+                font-size: 14px; padding: 9px;
+            }
+            QPushButton#btn_cancel:pressed { background-color: #2D1B4E; }
+        """)
 
+        from PySide6.QtWidgets import QLineEdit
         root = QVBoxLayout(self)
-        root.setContentsMargins(14, 14, 14, 12)
+        root.setContentsMargins(18, 16, 18, 14)
         root.setSpacing(8)
 
-        # Title
-        title = QLabel("🔐 Admin Authentication")
-        title.setObjectName("dlg_title")
+        title = QLabel("🔐  Admin Authentication")
         title.setAlignment(Qt.AlignCenter)
+        title.setStyleSheet("font-size: 16px; font-weight: bold;")
         root.addWidget(title)
 
-        # Display
-        self.display = QLabel("")
-        self.display.setObjectName("dlg_display")
-        root.addWidget(self.display)
+        self.password_input = QLineEdit()
+        self.password_input.setPlaceholderText("Enter admin password")
+        self.password_input.setEchoMode(QLineEdit.Password)
+        self.password_input.returnPressed.connect(self.accept)
+        root.addWidget(self.password_input)
 
-        # Error
         self.error_label = QLabel("")
         self.error_label.setObjectName("dlg_error")
         self.error_label.setAlignment(Qt.AlignCenter)
         root.addWidget(self.error_label)
 
-        # Numeric keypad  (phone layout: 1-2-3 top)
-        grid = QGridLayout()
-        grid.setSpacing(7)
-        _keys = [
-            ("1",0,0),("2",0,1),("3",0,2),
-            ("4",1,0),("5",1,1),("6",1,2),
-            ("7",2,0),("8",2,1),("9",2,2),
-            ("⌫",3,0),("0",3,1),("CLR",3,2),
-        ]
-        for label, r, c in _keys:
-            btn = QPushButton(label)
-            btn.setFixedSize(82, 58)
-            btn.setObjectName("key_digit" if label.isdigit() else "key_action")
-            btn.clicked.connect(lambda _, k=label: self._on_key(k))
-            grid.addWidget(btn, r, c)
-        root.addLayout(grid)
-
-        # Confirm / Cancel
         btn_row = QHBoxLayout()
-        btn_row.setSpacing(10)
+        btn_row.setSpacing(8)
         cancel_btn = QPushButton("Cancel")
         cancel_btn.setObjectName("btn_cancel")
         cancel_btn.clicked.connect(self.reject)
         btn_row.addWidget(cancel_btn)
         confirm_btn = QPushButton("✓  Confirm")
         confirm_btn.setObjectName("btn_confirm")
-        confirm_btn.clicked.connect(self._on_confirm)
+        confirm_btn.clicked.connect(self.accept)
         btn_row.addWidget(confirm_btn)
         root.addLayout(btn_row)
 
-    def _on_key(self, key):
-        if key == "⌫":
-            self._text = self._text[:-1]
-        elif key == "CLR":
-            self._text = ""
-        else:
-            self._text += key
-        self.error_label.setText("")  # clear error on each keystroke
-        self.display.setText("●" * len(self._text))
-
-    def _on_confirm(self):
-        self.accept()
+        self.password_input.setFocus()
 
     def get_password(self) -> str:
-        return self._text
+        return self.password_input.text()
 
     def show_error(self, message: str):
-        """Show inline error and reset input for retry."""
         self.error_label.setText(f"⚠  {message}")
-        self._text = ""
-        self.display.setText("")
+        self.password_input.clear()
+        self.password_input.setFocus()
 
-
-class NumericInputDialog(QDialog):
-    """Touch-friendly numeric keypad dialog (for employee ID etc.)."""
-
-    def __init__(self, parent=None, title="Enter Number"):
-        super().__init__(parent)
-        self._text = ""
-        self.setWindowTitle(title)
-        self.setModal(True)
-        self.setFixedSize(340, 480)
-        self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
-        self.setStyleSheet(_KEYPAD_STYLESHEET)
-
-        root = QVBoxLayout(self)
-        root.setContentsMargins(14, 14, 14, 12)
-        root.setSpacing(8)
-
-        lbl = QLabel(title)
-        lbl.setObjectName("dlg_title")
-        lbl.setAlignment(Qt.AlignCenter)
-        root.addWidget(lbl)
-
-        self.display = QLabel("")
-        self.display.setObjectName("dlg_display")
-        root.addWidget(self.display)
-
-        self.error_label = QLabel("")
-        self.error_label.setObjectName("dlg_error")
-        self.error_label.setAlignment(Qt.AlignCenter)
-        root.addWidget(self.error_label)
-
-        grid = QGridLayout()
-        grid.setSpacing(7)
-        _keys = [
-            ("1",0,0),("2",0,1),("3",0,2),
-            ("4",1,0),("5",1,1),("6",1,2),
-            ("7",2,0),("8",2,1),("9",2,2),
-            ("⌫",3,0),("0",3,1),("CLR",3,2),
-        ]
-        for label, r, c in _keys:
-            btn = QPushButton(label)
-            btn.setFixedSize(82, 58)
-            btn.setObjectName("key_digit" if label.isdigit() else "key_action")
-            btn.clicked.connect(lambda _, k=label: self._on_key(k))
-            grid.addWidget(btn, r, c)
-        root.addLayout(grid)
-
-        btn_row = QHBoxLayout()
-        btn_row.setSpacing(10)
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.setObjectName("btn_cancel")
-        cancel_btn.clicked.connect(self.reject)
-        btn_row.addWidget(cancel_btn)
-        confirm_btn = QPushButton("✓  Confirm")
-        confirm_btn.setObjectName("btn_confirm")
-        confirm_btn.clicked.connect(self.accept)
-        btn_row.addWidget(confirm_btn)
-        root.addLayout(btn_row)
-
-    def _on_key(self, key):
-        if key == "⌫":
-            self._text = self._text[:-1]
-        elif key == "CLR":
-            self._text = ""
-        else:
-            self._text += key
-        self.display.setText(self._text)
-
-    def get_text(self) -> str:
-        return self._text
-
-
-class NameInputDialog(QDialog):
-    """Touch-friendly full QWERTY keyboard dialog (for name entry)."""
-
-    _ROWS = ["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"]
-
-    def __init__(self, parent=None, title="Enter Name"):
-        super().__init__(parent)
-        self._text = ""
-        self._shift = True  # start uppercase
-        self.setWindowTitle(title)
-        self.setModal(True)
-        self.setFixedSize(760, 460)
-        self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
-        self.setStyleSheet(_KEYPAD_STYLESHEET)
-
-        root = QVBoxLayout(self)
-        root.setContentsMargins(14, 14, 14, 12)
-        root.setSpacing(6)
-
-        lbl = QLabel(title)
-        lbl.setObjectName("dlg_title")
-        lbl.setAlignment(Qt.AlignCenter)
-        root.addWidget(lbl)
-
-        self.display = QLabel("")
-        self.display.setObjectName("dlg_display")
-        root.addWidget(self.display)
-
-        # QWERTY rows
-        self._key_buttons = {}   # char -> QPushButton (to update on shift)
-        for row_str in self._ROWS:
-            row_layout = QHBoxLayout()
-            row_layout.setSpacing(5)
-            row_layout.addStretch()
-            for ch in row_str:
-                btn = QPushButton(ch)
-                btn.setObjectName("key_letter")
-                btn.setFixedSize(62, 52)
-                btn.clicked.connect(lambda _, c=ch: self._on_letter(c))
-                self._key_buttons[ch] = btn
-                row_layout.addWidget(btn)
-            row_layout.addStretch()
-            root.addLayout(row_layout)
-
-        # Bottom row: Shift | Space | ⌫ | CLR
-        bot = QHBoxLayout()
-        bot.setSpacing(6)
-        bot.addStretch()
-
-        self.shift_btn = QPushButton("⇧ Shift")
-        self.shift_btn.setObjectName("key_special")
-        self.shift_btn.setFixedSize(100, 48)
-        self.shift_btn.setCheckable(True)
-        self.shift_btn.setChecked(True)
-        self.shift_btn.clicked.connect(self._toggle_shift)
-        bot.addWidget(self.shift_btn)
-
-        space_btn = QPushButton("SPACE")
-        space_btn.setObjectName("key_special")
-        space_btn.setFixedSize(160, 48)
-        space_btn.clicked.connect(lambda: self._on_letter(" "))
-        bot.addWidget(space_btn)
-
-        bksp_btn = QPushButton("⌫")
-        bksp_btn.setObjectName("key_action")
-        bksp_btn.setFixedSize(72, 48)
-        bksp_btn.clicked.connect(lambda: self._on_letter("⌫"))
-        bot.addWidget(bksp_btn)
-
-        clr_btn = QPushButton("CLR")
-        clr_btn.setObjectName("key_action")
-        clr_btn.setFixedSize(72, 48)
-        clr_btn.clicked.connect(lambda: self._on_letter("CLR"))
-        bot.addWidget(clr_btn)
-
-        bot.addStretch()
-        root.addLayout(bot)
-
-        # Cancel / Confirm
-        btn_row = QHBoxLayout()
-        btn_row.setSpacing(10)
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.setObjectName("btn_cancel")
-        cancel_btn.clicked.connect(self.reject)
-        btn_row.addWidget(cancel_btn)
-        confirm_btn = QPushButton("✓  Confirm")
-        confirm_btn.setObjectName("btn_confirm")
-        confirm_btn.clicked.connect(self.accept)
-        btn_row.addWidget(confirm_btn)
-        root.addLayout(btn_row)
-
-    def _on_letter(self, ch):
-        if ch == "⌫":
-            self._text = self._text[:-1]
-        elif ch == "CLR":
-            self._text = ""
-        else:
-            self._text += ch.upper() if self._shift else ch.lower()
-            # Auto-unshift after first capital
-            if self._shift and ch not in (" ", "⌫", "CLR"):
-                self._shift = False
-                self.shift_btn.setChecked(False)
-                self._apply_shift()
-        self.display.setText(self._text)
-
-    def _toggle_shift(self):
-        self._shift = self.shift_btn.isChecked()
-        self._apply_shift()
-
-    def _apply_shift(self):
-        for ch, btn in self._key_buttons.items():
-            btn.setText(ch.upper() if self._shift else ch.lower())
-
-    def get_text(self) -> str:
-        return self._text
 
 
 
@@ -1784,23 +1508,16 @@ class AttendanceKioskGUI(QMainWindow):
             dlg.show_error(err_msg or "Invalid password")
             self.status_label.setText("❌ Invalid admin password")
 
-        # ── Step 2: Collect name ─────────────────────────────────────────────
-        name_dlg = NameInputDialog(self, title="Enter Person's Name")
-        if name_dlg.exec() != QDialog.Accepted:
-            return
-        name = name_dlg.get_text().strip()
-        if not name:
+        # ── Step 2: Collect name (system keyboard) ──────────────────────────────
+        name, ok = QInputDialog.getText(self, "Add New Face", "Enter person's name:")
+        if not (ok and name.strip()):
             return
 
-        # ── Step 3: Collect employee ID ───────────────────────────────────────
-        emp_dlg = NumericInputDialog(self, title="Enter Employee ID")
-        if emp_dlg.exec() != QDialog.Accepted:
-            self.notification_overlay.show_notification(
-                "Cancelled", "Employee ID is required for registration", "warning", 2000
-            )
-            return
-        employee_id = emp_dlg.get_text().strip()
-        if not employee_id:
+        # ── Step 3: Collect employee ID (system keyboard) ───────────────────────
+        employee_id, id_ok = QInputDialog.getText(
+            self, "Employee ID", "Enter employee ID (required):"
+        )
+        if not id_ok or not employee_id.strip():
             self.notification_overlay.show_notification(
                 "Cancelled", "Employee ID is required for registration", "warning", 2000
             )
