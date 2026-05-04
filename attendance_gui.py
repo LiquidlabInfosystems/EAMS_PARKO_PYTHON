@@ -135,7 +135,7 @@ class TextInputDialog(QDialog):
         self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
         self.setStyleSheet(f"""
             QDialog {{
-                background-color: transparent;
+                background-color: rgba(255, 255, 255, 230);
                 border: none;
             }}
             QLabel {{ color: #333333; font-size: {pf(14)}px; }}
@@ -199,6 +199,7 @@ class TextInputDialog(QDialog):
         btn_row.addWidget(cancel_btn)
         confirm_btn = QPushButton("✓  OK")
         confirm_btn.setObjectName("btn_confirm")
+        confirm_btn.clicked.connect(self.accept)
         btn_row.addWidget(confirm_btn)
         root.addLayout(btn_row)
 
@@ -437,11 +438,11 @@ class AdminPasswordDialog(QDialog):
         self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
         self.setStyleSheet(f"""
             QDialog {{
-                background-color: transparent;
+                background-color: rgba(255, 255, 255, 230);
                 border: none;
             }}
             QLabel {{ color: #333333; font-size: {pf(15)}px; }}
-            QLabel#dlg_error {{ color: #E74C3C; font-size: {pf(12)}px; min-height: {ph(16)}px; }}
+            QLabel#dlg_error {{ color: #E74C3C; font-size: {pf(12)}px; background-color: transparent; border: none; }}
             VKLineEdit, QLineEdit {{
                 background-color: #f9f9f9;
                 color: #000000;
@@ -505,6 +506,7 @@ class AdminPasswordDialog(QDialog):
         btn_row.addWidget(cancel_btn)
         confirm_btn = QPushButton("✓  Confirm")
         confirm_btn.setObjectName("btn_confirm")
+        confirm_btn.clicked.connect(self.accept)
         btn_row.addWidget(confirm_btn)
         root.addLayout(btn_row)
 
