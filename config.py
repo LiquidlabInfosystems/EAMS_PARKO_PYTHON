@@ -25,8 +25,8 @@ API_STORAGE_FILE = "failed_api_requests.json"
 ENABLE_LIVENESS = False  # Blink detection
 
 # ★★★ CAMERA SETTINGS ★★★
-CAMERA_RESOLUTION = (640, 480) 
-CAMERA_FPS = 30   
+CAMERA_RESOLUTION = (640, 640) 
+CAMERA_FPS = 60   
 CAMERA_ROTATION = 90  # Set to 90 to match your screen rotation
 
 # ★★★ INSIGHTFACE MODEL SETTINGS ★★★
