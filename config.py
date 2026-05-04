@@ -28,7 +28,7 @@ ENABLE_LIVENESS = False  # Blink detection
 # Pi 4 note: 640×640 @ 15 FPS is a safe operating point.
 # Rotation is applied at libcamera ISP level (not per-frame in Python),
 # so changing CAMERA_ROTATION has zero CPU cost at runtime.
-CAMERA_RESOLUTION = (640, 640)
+CAMERA_RESOLUTION = (960, 1080)
 CAMERA_FPS = 15           # Pi 4 safe value (Pi 5 could run 30-60)
 CAMERA_ROTATION = 90      # Applied once at camera init via libcamera.Transform
 
