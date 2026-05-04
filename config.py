@@ -7,7 +7,7 @@ InsightFace Edition - Raspberry Pi 4
 API_ENABLED = True  # Set to False to disable API sending
 
 # Server configuration
-API_SERVER_IP = "35.154.40.8"
+API_SERVER_IP = "3.109.106.154"
 # API_SERVER_IP = "192.168.1.18"
 
 API_SERVER_PORT = 3008
