@@ -14,8 +14,8 @@ import os
 os.environ['GLOG_minloglevel'] = '2'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 os.environ['QT_LOGGING_RULES'] = '*.debug=false;qt.accessibility.atspi.warning=false'
-# Tell Qt to use the virtual keyboard input method (required for touchscreen on RPi)
-os.environ.setdefault('QT_IM_MODULE', 'qtvirtualkeyboard')
+# Tell Qt not to fight with the system input method — we manage keyboard visibility manually
+os.environ.setdefault('QT_IM_MODULE', 'none')
 
 import sys
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
@@ -40,29 +40,81 @@ from modules.welcome_screen import WelcomeScreen
 from modules.mqtt_face_registration import MQTTFaceRegistrationHandler
 from modules.temporal_buffer import TemporalRecognitionBuffer
 
+import subprocess
+
 import config
 
 
 class VKLineEdit(QLineEdit):
     """
-    QLineEdit that explicitly triggers the system virtual keyboard on focus.
-    Required on PySide6 + RPi touchscreen because Qt does not auto-show the
-    OS keyboard without a working QT_IM_MODULE configured.
+    QLineEdit for touchscreen kiosks.
+    On focus, triggers the system virtual keyboard using the best available
+    method for the current environment (squeekboard on Wayland, onboard on X11).
+    Keys from these keyboards generate real OS-level events so they work with
+    any Qt widget without any special plugin.
     """
+    _kb_proc = None  # shared subprocess across all instances
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Must be set so Qt routes touch-focus to the input method
         self.setAttribute(Qt.WA_InputMethodEnabled, True)
 
     def focusInEvent(self, event):
         super().focusInEvent(event)
-        im = QApplication.instance().inputMethod()
-        if im:
-            im.show()
+        self._show_keyboard()
+
+    @classmethod
+    def _show_keyboard(cls):
+        """
+        Try each keyboard strategy in priority order and stop at first success.
+
+        Strategy 1 — squeekboard (dbus): default on RPi OS Bookworm / Wayland.
+        Strategy 2 — onboard: most reliable on X11; install with:
+                       sudo apt install onboard
+        Strategy 3 — matchbox-keyboard: lightweight X11 alternative:
+                       sudo apt install matchbox-keyboard
+        """
+        # Strategy 1: squeekboard via dbus (Wayland / RPi OS Bookworm)
+        try:
+            subprocess.Popen(
+                ['dbus-send', '--session', '--type=method_call',
+                 '--dest=sm.puri.OSK0', '/sm/puri/OSK0',
+                 'sm.puri.OSK0.SetVisible', 'boolean:true'],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            return
+        except Exception:
+            pass
+
+        # Strategy 2 & 3: launch onboard or matchbox-keyboard (X11)
+        # Only launch once; reuse the process if still alive.
+        if cls._kb_proc is not None and cls._kb_proc.poll() is None:
+            return  # already running
+
+        for cmd in (['onboard', '--size=medium'],
+                    ['matchbox-keyboard']):
+            try:
+                cls._kb_proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                return
+            except FileNotFoundError:
+                continue
+
+        # Last resort: Qt built-in input method (only works if qtvirtualkeyboard plugin installed)
+        try:
+            im = QApplication.instance().inputMethod()
+            if im:
+                im.show()
+        except Exception:
+            pass
 
     def focusOutEvent(self, event):
         super().focusOutEvent(event)
-        # Hide is managed by the system; don't force-hide here
+        # Let the system manage keyboard hiding
+
 
 
 class TextInputDialog(QDialog):
