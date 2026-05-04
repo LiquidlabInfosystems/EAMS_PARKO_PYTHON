@@ -152,13 +152,12 @@ class TextInputDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(title)
         self.setModal(True)
-        self.setFixedSize(pw(420), ph(200))
+        self.showFullScreen()
         self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
         self.setStyleSheet(f"""
             QDialog {{
                 background-color: #1a1a2e;
-                border: 2px solid #9B59B6;
-                border-radius: {pw(12)}px;
+                border: none;
             }}
             QLabel {{ color: #E8D5F5; font-size: {pf(14)}px; }}
             VKLineEdit, QLineEdit {{
@@ -184,13 +183,24 @@ class TextInputDialog(QDialog):
             QPushButton#btn_cancel:pressed {{ background-color: #2D1B4E; }}
         """)
 
-        root = QVBoxLayout(self)
-        root.setContentsMargins(pw(18), ph(14), pw(18), ph(12))
-        root.setSpacing(ph(8))
+        main_layout = QVBoxLayout(self)
+        main_layout.addStretch(1)
+
+        container = QFrame()
+        container.setStyleSheet(f"""
+            QFrame {{
+                background-color: #252542;
+                border: 2px solid #9B59B6;
+                border-radius: {pw(12)}px;
+            }}
+        """)
+        root = QVBoxLayout(container)
+        root.setContentsMargins(pw(25), ph(25), pw(25), ph(25))
+        root.setSpacing(ph(12))
 
         title_lbl = QLabel(title)
         title_lbl.setAlignment(Qt.AlignCenter)
-        title_lbl.setStyleSheet(f"font-size: {pf(15)}px; font-weight: bold; color: #E8D5F5;")
+        title_lbl.setStyleSheet(f"font-size: {pf(18)}px; font-weight: bold; color: #E8D5F5; border: none;")
         root.addWidget(title_lbl)
 
         if label:
@@ -210,9 +220,11 @@ class TextInputDialog(QDialog):
         btn_row.addWidget(cancel_btn)
         confirm_btn = QPushButton("✓  OK")
         confirm_btn.setObjectName("btn_confirm")
-        confirm_btn.clicked.connect(self.accept)
         btn_row.addWidget(confirm_btn)
         root.addLayout(btn_row)
+
+        main_layout.addWidget(container, alignment=Qt.AlignCenter)
+        main_layout.addStretch(1)
 
         self.input.setFocus()
 
@@ -235,44 +247,27 @@ class NotificationOverlay(QWidget):
         layout.setAlignment(Qt.AlignCenter)
         
         self.container = QFrame()
-        # Square shape with minimal border-radius (10px) - wider for API messages
-        self.container.setStyleSheet("""
-            QFrame {
-                background-color: rgba(0, 170, 102, 220);
-                border: 4px solid #00ff88;
-                border-radius: 10px;
-                padding: 40px;
-                min-width: 200px;
-                max-width: 400px;
-            }
-            QLabel {
-                color: #ffffff;
-                background: transparent;
-                border: none;
-            }
-        """)
-
-        container_layout = QVBoxLayout(self.container)
-        container_layout.setSpacing(ph(14))
+        self.container_layout = QVBoxLayout(self.container)
 
         self.icon_label = QLabel("✅")
         self.icon_label.setAlignment(Qt.AlignCenter)
-        self.icon_label.setStyleSheet(f"font-size: {pf(60)}px;")
 
         self.title_label = QLabel("SUCCESS")
         self.title_label.setAlignment(Qt.AlignCenter)
-        self.title_label.setStyleSheet(f"font-size: {pf(30)}px; font-weight: bold;")
 
         self.message_label = QLabel("")
         self.message_label.setAlignment(Qt.AlignCenter)
-        self.message_label.setStyleSheet(f"font-size: {pf(20)}px;")
         self.message_label.setWordWrap(True)
 
-        container_layout.addWidget(self.icon_label)
-        container_layout.addWidget(self.title_label)
-        container_layout.addWidget(self.message_label)
+        self.container_layout.addWidget(self.icon_label)
+        self.container_layout.addWidget(self.title_label)
+        self.container_layout.addWidget(self.message_label)
 
         layout.addWidget(self.container)
+
+        # Base style config updated in show_notification
+        self.bg_color = "rgba(0, 170, 102, 220)"
+        self.border_color = "#00ff88"
 
         # Fade animation
         self.fade_timer = QTimer()
@@ -280,6 +275,38 @@ class NotificationOverlay(QWidget):
         self.fade_timer.timeout.connect(self.start_fade_out)
 
         self.hide()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.update_styles()
+
+    def update_styles(self):
+        w = self.width()
+        h = self.height()
+        def _pf(n): return max(8, int(n * min(w, h) / 480))
+        def _pw(n): return max(1, int(n * w / 480))
+        def _ph(n): return max(1, int(n * h / 854))
+
+        self.container_layout.setSpacing(_ph(8))
+
+        self.container.setStyleSheet(f"""
+            QFrame {{
+                background-color: {self.bg_color};
+                border: 3px solid {self.border_color};
+                border-radius: {_pw(8)}px;
+                padding: {_ph(15)}px;
+                min-width: {_pw(150)}px;
+                max-width: {_pw(250)}px;
+            }}
+            QLabel {{
+                color: #ffffff;
+                background: transparent;
+                border: none;
+            }}
+        """)
+        self.icon_label.setStyleSheet(f"font-size: {_pf(30)}px;")
+        self.title_label.setStyleSheet(f"font-size: {_pf(16)}px; font-weight: bold;")
+        self.message_label.setStyleSheet(f"font-size: {_pf(12)}px;")
 
     def show_notification(self, title, message, notification_type="success", duration_ms=3000):
         """
@@ -304,22 +331,11 @@ class NotificationOverlay(QWidget):
             bg_color = "rgba(74, 144, 226, 220)"
             border_color = "#6ab0ff"
 
-        # Update styling
-        self.container.setStyleSheet(f"""
-            QFrame {{
-                background-color: {bg_color};
-                border: 4px solid {border_color};
-                border-radius: 10px;
-                padding: 40px;
-                min-width: 200px;
-                max-width: 400px;
-            }}
-            QLabel {{
-                color: #ffffff;
-                background: transparent;
-                border: none;
-            }}
-        """)
+        self.bg_color = bg_color
+        self.border_color = border_color
+        
+        # Trigger style update to apply new colors
+        self.update_styles()
 
         self.icon_label.setText(icon)
         self.title_label.setText(title.upper())
@@ -436,13 +452,12 @@ class AdminPasswordDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Admin Authentication")
         self.setModal(True)
-        self.setFixedSize(pw(420), ph(230))
+        self.showFullScreen()
         self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
         self.setStyleSheet(f"""
             QDialog {{
                 background-color: #1a1a2e;
-                border: 2px solid #9B59B6;
-                border-radius: {pw(12)}px;
+                border: none;
             }}
             QLabel {{ color: #E8D5F5; font-size: {pf(15)}px; }}
             QLabel#dlg_error {{ color: #E74C3C; font-size: {pf(12)}px; min-height: {ph(16)}px; }}
@@ -470,13 +485,24 @@ class AdminPasswordDialog(QDialog):
             QPushButton#btn_cancel:pressed {{ background-color: #2D1B4E; }}
         """)
 
-        root = QVBoxLayout(self)
-        root.setContentsMargins(pw(18), ph(16), pw(18), ph(14))
-        root.setSpacing(ph(8))
+        main_layout = QVBoxLayout(self)
+        main_layout.addStretch(1)
+
+        container = QFrame()
+        container.setStyleSheet(f"""
+            QFrame {{
+                background-color: #252542;
+                border: 2px solid #9B59B6;
+                border-radius: {pw(12)}px;
+            }}
+        """)
+        root = QVBoxLayout(container)
+        root.setContentsMargins(pw(25), ph(25), pw(25), ph(25))
+        root.setSpacing(ph(12))
 
         title = QLabel("🔐  Admin Authentication")
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet(f"font-size: {pf(16)}px; font-weight: bold; color: #E8D5F5;")
+        title.setStyleSheet(f"font-size: {pf(18)}px; font-weight: bold; color: #E8D5F5; border: none;")
         root.addWidget(title)
 
         self.password_input = VKLineEdit()
@@ -498,9 +524,11 @@ class AdminPasswordDialog(QDialog):
         btn_row.addWidget(cancel_btn)
         confirm_btn = QPushButton("✓  Confirm")
         confirm_btn.setObjectName("btn_confirm")
-        confirm_btn.clicked.connect(self.accept)
         btn_row.addWidget(confirm_btn)
         root.addLayout(btn_row)
+
+        main_layout.addWidget(container, alignment=Qt.AlignCenter)
+        main_layout.addStretch(1)
 
         self.password_input.setFocus()
 
@@ -1679,18 +1707,22 @@ class AttendanceKioskGUI(QMainWindow):
 
     def start_registration(self):
         """Start registration — guarded by admin password validation."""
+        # Pause background face detection processing
+        self.event_in_progress = True
 
         # ── Step 1: Admin password gate ──────────────────────────────────────
         dlg = AdminPasswordDialog(self)
 
         while True:
             if dlg.exec() != QDialog.Accepted:
+                self.event_in_progress = False
                 return  # User cancelled
 
             password = dlg.get_password().strip()
             if not password:
                 dlg.show_error("Password cannot be empty")
                 if dlg.exec() == QDialog.Rejected:
+                    self.event_in_progress = False
                     return
                 continue
 
@@ -1714,9 +1746,11 @@ class AttendanceKioskGUI(QMainWindow):
         name_dlg = TextInputDialog(self, title="Enter Person's Name",
                                    placeholder="Full name")
         if name_dlg.exec() != QDialog.Accepted:
+            self.event_in_progress = False
             return
         name = name_dlg.get_text().strip()
         if not name:
+            self.event_in_progress = False
             return
 
         # ── Step 3: Collect employee ID ───────────────────────────────────────
@@ -1726,15 +1760,20 @@ class AttendanceKioskGUI(QMainWindow):
             self.notification_overlay.show_notification(
                 "Cancelled", "Employee ID is required for registration", "warning", 2000
             )
+            self.event_in_progress = False
             return
         employee_id = emp_dlg.get_text().strip()
         if not employee_id:
             self.notification_overlay.show_notification(
                 "Cancelled", "Employee ID is required for registration", "warning", 2000
             )
+            self.event_in_progress = False
             return
 
         # ── Step 4: Begin registration ────────────────────────────────────────
+        # Unpause face detection so we can capture
+        self.event_in_progress = False
+
         # Force camera view during registration
         self.display_stack.setCurrentIndex(1)
 
