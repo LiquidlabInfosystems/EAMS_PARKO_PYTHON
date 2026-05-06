@@ -17,6 +17,7 @@ os.environ['QT_LOGGING_RULES'] = '*.debug=false;qt.accessibility.atspi.warning=f
 # Qt handles system input methods natively
 
 import sys
+import threading
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                                QHBoxLayout, QLabel, QPushButton, QFrame, QInputDialog, 
                                QGridLayout, QMessageBox, QDialog, QProgressBar, QStackedWidget,
@@ -634,6 +635,10 @@ class SimpleConfirmationDialog(QDialog):
 
 
 class AttendanceKioskGUI(QMainWindow):
+    # Signal emitted when background status sync completes
+    # Args: (person_name, api_response_dict_or_none)
+    sync_finished = Signal(str, object)
+
     def __init__(self):
         super().__init__()
         
@@ -796,6 +801,10 @@ class AttendanceKioskGUI(QMainWindow):
 
         # Welcome screen state
         self.no_face_timeout = None
+
+        # ★★★ ASYNC SYNC TRACKING ★★★
+        self.syncing_persons = set()  # Set of names currently being synced
+        self.sync_finished.connect(self.on_sync_finished)
 
         # ★★★ FACE CONFIRMATION & FREEZE STATE ★★★
         self.face_confirmed = False              # Is face confirmed and frozen?
@@ -1091,13 +1100,8 @@ class AttendanceKioskGUI(QMainWindow):
 
     def _sync_status_for_person(self, person_name: str) -> bool:
         """
-        Fetch and sync attendance status from server for a person
-        
-        Args:
-            person_name: Name of the person to sync
-            
-        Returns:
-            True if sync succeeded and user is NOT blocked
+        Start an asynchronous sync of attendance status from server for a person.
+        Returns the CURRENT blocked state (True if blocked).
         """
         if not self.api_client:
             return True  # Offline mode - allow actions
@@ -1106,7 +1110,7 @@ class AttendanceKioskGUI(QMainWindow):
         employee_id = self.face_recognizer.get_employee_id(person_name)
         
         if not employee_id or employee_id == "none":
-            print(f"⚠️ No employee ID for {person_name} - using local state")
+            # print(f"⚠️ No employee ID for {person_name}")
             self.is_user_blocked = False
             return True
         
@@ -1115,37 +1119,79 @@ class AttendanceKioskGUI(QMainWindow):
         if (self.last_synced_employee_id == employee_id and 
             current_time - self.last_status_sync_time < 5):  # Min 5 seconds between syncs
             return not self.is_user_blocked
+
+        # If already syncing this person, don't start another thread
+        if person_name in self.syncing_persons:
+            return not self.is_user_blocked
+
+        # Start background sync thread
+        def sync_worker():
+            try:
+                # print(f"🔄 Async sync START for {person_name}...")
+                timestamp = int(datetime.now().timestamp())
+                api_response = self.api_client.get_attendance_status(employee_id, timestamp)
+                # Emit signal to main thread
+                self.sync_finished.emit(person_name, api_response)
+            except Exception as e:
+                print(f"❌ Async sync error for {person_name}: {e}")
+                self.sync_finished.emit(person_name, None)
+
+        self.syncing_persons.add(person_name)
+        threading.Thread(target=sync_worker, daemon=True).start()
         
+        # Return current state while sync is in progress
+        return not self.is_user_blocked
+
+    @Slot(str, object)
+    def on_sync_finished(self, person_name, api_response):
+        """Handle background sync completion"""
+        if person_name in self.syncing_persons:
+            self.syncing_persons.remove(person_name)
+
+        if api_response is None:
+            # Sync failed (timeout/offline) - keep using local state
+            return
+
         try:
-            # Fetch status from server
-            timestamp = int(datetime.now().timestamp())
-            api_response = self.api_client.get_attendance_status(employee_id, timestamp)
-            
             # Update tracking
-            self.last_status_sync_time = current_time
-            self.last_synced_employee_id = employee_id
+            self.last_status_sync_time = time.time()
+            self.last_synced_employee_id = self.face_recognizer.get_employee_id(person_name)
             
             # Sync with state manager
             success, message, is_blocked = self.state_manager.sync_from_server(person_name, api_response)
             
+            # Update blocking state
+            was_blocked = self.is_user_blocked
             self.is_user_blocked = is_blocked
             
             if is_blocked:
-                # Store message for display after confirmation
                 self.blocked_message = message
-                # Don't show notification here - will show after face confirmation
-                print(f"🚫 User blocked (will notify after confirmation): {message}")
-                return False
+                print(f"🚫 User {person_name} BLOCKED by server: {message}")
+                
+                # If this is the currently confirmed person, update UI immediately
+                if self.face_confirmed and self.confirmed_person_name == person_name:
+                    self.notification_overlay.show_notification(
+                        "⚠️ Action Blocked", 
+                        message or "Action not allowed", 
+                        "warning", 5000
+                    )
+                    self.button_frame.setVisible(False)
+                    QTimer.singleShot(4000, self._reset_face_confirmation)
             
-            if success:
-                print(f"✅ Status synced for {person_name}")
-            
-            return success
-            
+            elif was_blocked:
+                # User was blocked but now unblocked
+                print(f"🔓 User {person_name} UNBLOCKED by server")
+                if self.face_confirmed and self.confirmed_person_name == person_name:
+                    self.button_frame.setVisible(True)
+                    self.update_button_visibility(person_name)
+
+            # Refresh buttons if this is the person on screen
+            if (self.current_recognized_person == person_name or 
+                (self.face_confirmed and self.confirmed_person_name == person_name)):
+                self.update_button_visibility(person_name)
+
         except Exception as e:
-            print(f"❌ Status sync error: {e}")
-            self.is_user_blocked = False
-            return True  # Allow on error (fallback to local)
+            print(f"❌ Error handling sync result: {e}")
 
     def _sync_all_users_on_startup(self):
         """Sync attendance status for all registered employees on startup"""
@@ -2119,9 +2165,12 @@ class AttendanceKioskGUI(QMainWindow):
             self._rearrange_button_grid()
             return
         
-        # ★★★ SYNC STATUS FROM SERVER FIRST ★★★
-        if not self._sync_status_for_person(person_name):
-            # User is blocked - buttons hidden, grid needs refresh
+        # ★★★ START ASYNC SYNC (non-blocking) ★★★
+        # This will trigger a UI refresh via signal when it finishes
+        is_allowed = self._sync_status_for_person(person_name)
+        
+        if not is_allowed:
+            # User is blocked in local state - hide buttons
             for btn in self.all_action_buttons:
                 btn.setVisible(False)
             self._rearrange_button_grid()
