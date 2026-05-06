@@ -879,54 +879,47 @@ class AttendanceKioskGUI(QMainWindow):
         self.progress_bar.setVisible(False)
         self.main_layout.addWidget(self.progress_bar)
 
-        # Action buttons container - switched to QVBoxLayout for better alignment
+        # Action buttons container - switched to QGridLayout for 2x2 layout
         self.button_frame = QFrame()
         self.button_frame.setObjectName("buttonContainer")
-        button_layout = QVBoxLayout(self.button_frame)
-        button_layout.setSpacing(ph(10))
-        button_layout.setContentsMargins(pw(30), ph(10), pw(30), ph(10))
+        self.button_layout = QGridLayout(self.button_frame)
+        self.button_layout.setSpacing(ph(10))
+        self.button_layout.setContentsMargins(pw(15), ph(10), pw(15), ph(10))
 
         self.time_in_btn = QPushButton("\U0001F551 TIME IN")
         self.time_in_btn.setObjectName("timeIn")
         self.time_in_btn.clicked.connect(self.handle_time_in)
         self.time_in_btn.setCursor(Qt.PointingHandCursor)
-        button_layout.addWidget(self.time_in_btn)
 
         self.time_out_btn = QPushButton("\U0001F551 TIME OUT")
         self.time_out_btn.setObjectName("timeOut")
         self.time_out_btn.clicked.connect(self.handle_time_out)
         self.time_out_btn.setCursor(Qt.PointingHandCursor)
-        button_layout.addWidget(self.time_out_btn)
 
         self.break_in_btn = QPushButton("\U00002615 BREAK START")
         self.break_in_btn.setObjectName("breakIn")
         self.break_in_btn.clicked.connect(self.handle_break_in)
         self.break_in_btn.setCursor(Qt.PointingHandCursor)
-        button_layout.addWidget(self.break_in_btn)
 
         self.break_out_btn = QPushButton("\U00002615 BREAK END")
         self.break_out_btn.setObjectName("breakOut")
         self.break_out_btn.clicked.connect(self.handle_break_out)
         self.break_out_btn.setCursor(Qt.PointingHandCursor)
-        button_layout.addWidget(self.break_out_btn)
 
         self.job_in_btn = QPushButton("\U0001F4BC JOB START")
         self.job_in_btn.setObjectName("jobIn")
         self.job_in_btn.clicked.connect(self.handle_job_in)
         self.job_in_btn.setCursor(Qt.PointingHandCursor)
-        button_layout.addWidget(self.job_in_btn)
 
         self.job_out_btn = QPushButton("\U0001F4BC JOB END")
         self.job_out_btn.setObjectName("jobOut")
         self.job_out_btn.clicked.connect(self.handle_job_out)
         self.job_out_btn.setCursor(Qt.PointingHandCursor)
-        button_layout.addWidget(self.job_out_btn)
 
         self.add_face_btn = QPushButton("\U0001F464 ADD NEW FACE")
         self.add_face_btn.setObjectName("addFace")
         self.add_face_btn.clicked.connect(self.start_registration)
         self.add_face_btn.setCursor(Qt.PointingHandCursor)
-        button_layout.addWidget(self.add_face_btn)
 
         self.main_layout.addWidget(self.button_frame)
 
@@ -2114,6 +2107,54 @@ class AttendanceKioskGUI(QMainWindow):
             self.job_out_btn.setVisible(False)
             
         self.add_face_btn.setVisible(True)
+
+        # ★★★ DYNAMIC GRID POSITIONING ★★★
+        # Clear existing widgets from layout without deleting them
+        for i in reversed(range(self.button_layout.count())):
+            item = self.button_layout.takeAt(i)
+            if item.widget():
+                item.widget().hide() # Hide all first
+
+        # Collect visible buttons
+        visible_btns = []
+        # Ordered list for consistent grid placement
+        all_btns = [
+            self.time_in_btn, self.time_out_btn, 
+            self.break_in_btn, self.break_out_btn, 
+            self.job_in_btn, self.job_out_btn, 
+            self.add_face_btn
+        ]
+        for btn in all_btns:
+            if btn.isVisible():
+                visible_btns.append(btn)
+                btn.show()
+
+        row = 0
+        col = 0
+        for btn in visible_btns:
+            if btn == self.job_out_btn:
+                # Job End takes full row
+                if col == 1: row += 1 # Move to next row if we were in middle of one
+                self.button_layout.addWidget(btn, row, 0, 1, 2)
+                row += 1
+                col = 0
+            else:
+                self.button_layout.addWidget(btn, row, col)
+                col += 1
+                if col > 1:
+                    col = 0
+                    row += 1
+
+        # ★★★ DYNAMIC CAMERA HEIGHT ADJUSTMENT ★★★
+        # If number of rows increases, reduce camera height to ensure everything fits
+        total_rows = row + (1 if col > 0 else 0)
+        if total_rows >= 3:
+            self.display_stack.setMaximumHeight(ph(350))
+        elif total_rows == 2:
+            self.display_stack.setMaximumHeight(ph(420))
+        else:
+            # 0 or 1 row - give more space to camera
+            self.display_stack.setMaximumHeight(ph(520))
 
     
     def handle_time_in(self):
