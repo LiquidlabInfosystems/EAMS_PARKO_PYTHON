@@ -618,8 +618,8 @@ class AttendanceKioskGUI(QMainWindow):
             cooldown_seconds=config.UNKNOWN_PERSON_COOLDOWN
         )
 
-        # MQTT Reporter
-        if config.MQTT_ENABLED:
+        # MQTT Reporter - Gated by ENABLE_MQTT_FEATURES
+        if config.MQTT_ENABLED and getattr(config, 'ENABLE_MQTT_FEATURES', False):
             self.mqtt_reporter = MQTTIncidentReporter(
                 broker_host=config.MQTT_BROKER_HOST,
                 broker_port=config.MQTT_BROKER_PORT,
@@ -627,6 +627,8 @@ class AttendanceKioskGUI(QMainWindow):
             )
         else:
             self.mqtt_reporter = None
+            if not getattr(config, 'ENABLE_MQTT_FEATURES', False):
+                print("○ MQTT Reporter disabled (ENABLE_MQTT_FEATURES is False)")
 
         # Tracking variables
         self.unknown_person_start_time = None
@@ -678,7 +680,9 @@ class AttendanceKioskGUI(QMainWindow):
                 print("○ API Client disabled")
 
             # ★★★ INITIALIZE MQTT FACE REGISTRATION HANDLER ★★★
-            if config.MQTT_ENABLED and getattr(config, 'MQTT_FACE_REGISTRATION_ENABLED', False):
+            if (config.MQTT_ENABLED and 
+                getattr(config, 'MQTT_FACE_REGISTRATION_ENABLED', False) and 
+                getattr(config, 'ENABLE_MQTT_FEATURES', False)):
                 try:
                     self.mqtt_face_handler = MQTTFaceRegistrationHandler(
                         face_recognizer=self.face_recognizer,
@@ -1568,82 +1572,79 @@ class AttendanceKioskGUI(QMainWindow):
                         name = "Unknown"
                         color_rgb = RED_RGB
                         self.current_recognized_person = None
-                        current_time = time.time()
                         
-                        # if self.unknown_person_start_time is None:
-                        #     self.unknown_person_start_time = current_time
-                        #     self.unknown_person_last_frame = frame_rgb.copy()
-                        #     self.unknown_person_last_bbox = (x, y, w, h)
-                        #     self.status_label.setText("⚠️ Unknown Person - Monitoring")
-                        if self.unknown_person_start_time is None:
-                            # First detection of unknown person
-                            self.unknown_person_start_time = current_time
-                            self.unknown_person_last_frame = frame_rgb.copy()
-                            self.unknown_person_last_bbox = (x, y, w, h)
-                            self.unknown_person_embedding = None
-                            self.unknown_person_id = None
-                            self.update_button_visibility(None)
-                            # Show button frame so "ADD NEW FACE" is accessible for unknown persons
-                            self.button_frame.setVisible(True)
+                        # ★★★ UNKNOWN PERSON MONITORING - Gated by ENABLE_MQTT_FEATURES ★★★
+                        if getattr(config, 'ENABLE_MQTT_FEATURES', False):
+                            current_time = time.time()
+                            
+                            if self.unknown_person_start_time is None:
+                                # First detection of unknown person
+                                self.unknown_person_start_time = current_time
+                                self.unknown_person_last_frame = frame_rgb.copy()
+                                self.unknown_person_last_bbox = (x, y, w, h)
+                                self.unknown_person_embedding = None
+                                self.unknown_person_id = None
+                                self.update_button_visibility(None)
+                                # Show button frame so "ADD NEW FACE" is accessible for unknown persons
+                                self.button_frame.setVisible(True)
 
-                            self.status_label.setText("⚠️ Unknown Person - Monitoring")
-                            print(f"⚠️ Unknown person detected, timer started")
-                        else:
-                            # Unknown person still in frame
-                            duration = current_time - self.unknown_person_start_time
-                            self.unknown_person_last_frame = frame_rgb.copy()
-                            self.unknown_person_last_bbox = (x, y, w, h)
-                            
-                            # ===== TIMER DISPLAY - MUST BE HERE, NOT NESTED! =====
-                            timer_text = f"Unknown: {int(duration)}s / {int(config.UNKNOWN_PERSON_TIMEOUT)}s"
-                            self.status_label.setText(f"⚠️ {timer_text}")
-                            
-                            # Draw timer on video
-                            # timer_display = f"UNKNOWN: {int(duration)}s"
-                            # self.draw_filled_box_rgb(display_frame, 10, 30, 400, 100, (255, 255, 255))
-                            # self.put_text_rgb(display_frame, timer_display, 30, 80, (255, 0, 0), 2.0, 4)
-                            # ======================================================
-                            
-                            # Check if threshold exceeded
-                            if duration >= config.UNKNOWN_PERSON_TIMEOUT:
-                                # Extract embedding if not done yet
-                                if self.unknown_person_embedding is None:
-                                    face_img = self.face_recognizer.extract_face_region(
-                                        self.unknown_person_last_frame, person, align=False)
-                                    if face_img is not None:
-                                        self.unknown_person_embedding = self.face_recognizer.extract_embedding(face_img)
-                                        
-                                        if self.unknown_person_embedding is not None:
-                                            self.unknown_person_id, is_new = self.unknown_tracker.get_or_create_unknown(
-                                                self.unknown_person_embedding)
+                                self.status_label.setText("⚠️ Unknown Person - Monitoring")
+                                print(f"⚠️ Unknown person detected, timer started")
+                            else:
+                                # Unknown person still in frame
+                                duration = current_time - self.unknown_person_start_time
+                                self.unknown_person_last_frame = frame_rgb.copy()
+                                self.unknown_person_last_bbox = (x, y, w, h)
                                 
-                                # Check cooldown and send incident
-                                if self.unknown_person_id:
-                                    can_send, reason = self.unknown_tracker.can_send_incident(self.unknown_person_id)
-                                    
-                                    if can_send and self.mqtt_reporter and self.mqtt_reporter.connected:
-                                        person_info = self.unknown_tracker.get_person_info(self.unknown_person_id)
-                                        incident_num = person_info['incident_count'] + 1 if person_info else 1
-                                        
-                                        incident_sent = self.mqtt_reporter.send_incident(
-                                            frame=self.unknown_person_last_frame,
-                                            detection_time=datetime.fromtimestamp(self.unknown_person_start_time),
-                                            duration=duration,
-                                            bbox=None,  # Send whole frame
-                                            unknown_person_id=self.unknown_person_id,
-                                            incident_number=incident_num
-                                        )
-                                        
-                                        if incident_sent:
-                                            self.unknown_tracker.record_incident(self.unknown_person_id)
-                                            self.unknown_person_start_time = None
-                                            self.unknown_person_embedding = None
+                                # ===== TIMER DISPLAY =====
+                                timer_text = f"Unknown: {int(duration)}s / {int(config.UNKNOWN_PERSON_TIMEOUT)}s"
+                                self.status_label.setText(f"⚠️ {timer_text}")
+                                
+                                # Check if threshold exceeded
+                                if duration >= config.UNKNOWN_PERSON_TIMEOUT:
+                                    # Extract embedding if not done yet
+                                    if self.unknown_person_embedding is None:
+                                        face_img = self.face_recognizer.extract_face_region(
+                                            self.unknown_person_last_frame, person, align=False)
+                                        if face_img is not None:
+                                            self.unknown_person_embedding = self.face_recognizer.extract_embedding(face_img)
                                             
-                                            self.notification_overlay.show_notification(
-                                                "Security Alert",
-                                                f"{self.unknown_person_id} detected\nDuration: {duration:.1f}s\nIncident #{incident_num}",
-                                                "warning", 4000
+                                            if self.unknown_person_embedding is not None:
+                                                self.unknown_person_id, is_new = self.unknown_tracker.get_or_create_unknown(
+                                                    self.unknown_person_embedding)
+                                    
+                                    # Check cooldown and send incident
+                                    if self.unknown_person_id:
+                                        can_send, reason = self.unknown_tracker.can_send_incident(self.unknown_person_id)
+                                        
+                                        if can_send and self.mqtt_reporter and self.mqtt_reporter.connected:
+                                            person_info = self.unknown_tracker.get_person_info(self.unknown_person_id)
+                                            incident_num = person_info['incident_count'] + 1 if person_info else 1
+                                            
+                                            incident_sent = self.mqtt_reporter.send_incident(
+                                                frame=self.unknown_person_last_frame,
+                                                detection_time=datetime.fromtimestamp(self.unknown_person_start_time),
+                                                duration=duration,
+                                                bbox=None,  # Send whole frame
+                                                unknown_person_id=self.unknown_person_id,
+                                                incident_number=incident_num
                                             )
+                                            
+                                            if incident_sent:
+                                                self.unknown_tracker.record_incident(self.unknown_person_id)
+                                                self.unknown_person_start_time = None
+                                                self.unknown_person_embedding = None
+                                                
+                                                self.notification_overlay.show_notification(
+                                                    "Security Alert",
+                                                    f"{self.unknown_person_id} detected\nDuration: {duration:.1f}s\nIncident #{incident_num}",
+                                                    "warning", 4000
+                                                )
+                        else:
+                            # MQTT Features disabled - just show status and "ADD NEW FACE" button
+                            self.status_label.setText("⚠️ Unknown Person")
+                            self.update_button_visibility(None)
+                            self.button_frame.setVisible(True)
 
 
 
