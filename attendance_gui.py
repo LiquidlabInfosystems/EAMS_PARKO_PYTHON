@@ -71,8 +71,10 @@ import subprocess
 class VKLineEdit(QLineEdit):
     """
     Triggers the default system virtual keyboard (squeekboard on Wayland, onboard on X11).
+    Includes auto-hide logic on focus loss.
     """
     _kb_proc = None
+    _hide_timer = None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -80,7 +82,20 @@ class VKLineEdit(QLineEdit):
 
     def focusInEvent(self, event):
         super().focusInEvent(event)
+        # Cancel any pending hide
+        if VKLineEdit._hide_timer and VKLineEdit._hide_timer.isActive():
+            VKLineEdit._hide_timer.stop()
         self._show_keyboard()
+
+    def focusOutEvent(self, event):
+        super().focusOutEvent(event)
+        # Delay hiding to see if another VKLineEdit gets focus (e.g. tabbing)
+        if VKLineEdit._hide_timer is None:
+            VKLineEdit._hide_timer = QTimer()
+            VKLineEdit._hide_timer.setSingleShot(True)
+            VKLineEdit._hide_timer.timeout.connect(self._hide_keyboard)
+        
+        VKLineEdit._hide_timer.start(200) # 200ms delay
 
     @classmethod
     def _show_keyboard(cls):
@@ -110,8 +125,23 @@ class VKLineEdit(QLineEdit):
             except FileNotFoundError:
                 continue
 
-    def focusOutEvent(self, event):
-        super().focusOutEvent(event)
+    @classmethod
+    def _hide_keyboard(cls):
+        # 1. Hide squeekboard
+        try:
+            subprocess.run(
+                ['dbus-send', '--session', '--type=method_call',
+                 '--dest=sm.puri.OSK0', '/sm/puri/OSK0',
+                 'sm.puri.OSK0.SetVisible', 'boolean:false'],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+        except Exception:
+            pass
+
+        # 2. Hide X11 keyboards
+        if cls._kb_proc is not None and cls._kb_proc.poll() is None:
+            cls._kb_proc.terminate()
+            cls._kb_proc = None
 
 
 
@@ -1749,6 +1779,9 @@ class AttendanceKioskGUI(QMainWindow):
             dlg.show_error(err_msg or "Invalid password")
             self.status_label.setText("❌ Invalid admin password")
 
+        # Hide keyboard after admin password is accepted
+        VKLineEdit._hide_keyboard()
+
         # ── Step 2: Collect name ─────────────────────────────────────────────
         name_dlg = TextInputDialog(self, title="Enter Person's Name",
                                    placeholder="Full name")
@@ -1898,6 +1931,9 @@ class AttendanceKioskGUI(QMainWindow):
         self.registration_person_employee_id = None  # Reset employee ID
         self.captured_faces = []
         self.current_registration_step = 0
+        
+        # Ensure keyboard is hidden
+        VKLineEdit._hide_keyboard()
 
         self.capture_btn.setEnabled(True)
 
