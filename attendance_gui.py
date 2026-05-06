@@ -879,54 +879,56 @@ class AttendanceKioskGUI(QMainWindow):
         self.progress_bar.setVisible(False)
         self.main_layout.addWidget(self.progress_bar)
 
-        # Action buttons container - switched to QVBoxLayout for better alignment
+        # Action buttons container - switched to QGridLayout for 2-column layout
         self.button_frame = QFrame()
         self.button_frame.setObjectName("buttonContainer")
-        button_layout = QVBoxLayout(self.button_frame)
-        button_layout.setSpacing(ph(10))
-        button_layout.setContentsMargins(pw(30), ph(10), pw(30), ph(10))
+        self.button_layout = QGridLayout(self.button_frame)
+        self.button_layout.setSpacing(ph(10))
+        # Reduced side padding for better width usage
+        self.button_layout.setContentsMargins(pw(15), ph(10), pw(15), ph(10))
 
         self.time_in_btn = QPushButton("\U0001F551 TIME IN")
         self.time_in_btn.setObjectName("timeIn")
         self.time_in_btn.clicked.connect(self.handle_time_in)
         self.time_in_btn.setCursor(Qt.PointingHandCursor)
-        button_layout.addWidget(self.time_in_btn)
 
         self.time_out_btn = QPushButton("\U0001F551 TIME OUT")
         self.time_out_btn.setObjectName("timeOut")
         self.time_out_btn.clicked.connect(self.handle_time_out)
         self.time_out_btn.setCursor(Qt.PointingHandCursor)
-        button_layout.addWidget(self.time_out_btn)
 
         self.break_in_btn = QPushButton("\U00002615 BREAK START")
         self.break_in_btn.setObjectName("breakIn")
         self.break_in_btn.clicked.connect(self.handle_break_in)
         self.break_in_btn.setCursor(Qt.PointingHandCursor)
-        button_layout.addWidget(self.break_in_btn)
 
         self.break_out_btn = QPushButton("\U00002615 BREAK END")
         self.break_out_btn.setObjectName("breakOut")
         self.break_out_btn.clicked.connect(self.handle_break_out)
         self.break_out_btn.setCursor(Qt.PointingHandCursor)
-        button_layout.addWidget(self.break_out_btn)
 
         self.job_in_btn = QPushButton("\U0001F4BC JOB START")
         self.job_in_btn.setObjectName("jobIn")
         self.job_in_btn.clicked.connect(self.handle_job_in)
         self.job_in_btn.setCursor(Qt.PointingHandCursor)
-        button_layout.addWidget(self.job_in_btn)
 
         self.job_out_btn = QPushButton("\U0001F4BC JOB END")
         self.job_out_btn.setObjectName("jobOut")
         self.job_out_btn.clicked.connect(self.handle_job_out)
         self.job_out_btn.setCursor(Qt.PointingHandCursor)
-        button_layout.addWidget(self.job_out_btn)
 
         self.add_face_btn = QPushButton("\U0001F464 ADD NEW FACE")
         self.add_face_btn.setObjectName("addFace")
         self.add_face_btn.clicked.connect(self.start_registration)
         self.add_face_btn.setCursor(Qt.PointingHandCursor)
-        button_layout.addWidget(self.add_face_btn)
+
+        # Store all buttons in a list for easy management
+        self.all_action_buttons = [
+            self.time_in_btn, self.time_out_btn,
+            self.break_in_btn, self.break_out_btn,
+            self.job_in_btn, self.job_out_btn,
+            self.add_face_btn
+        ]
 
         self.main_layout.addWidget(self.button_frame)
 
@@ -2074,19 +2076,19 @@ class AttendanceKioskGUI(QMainWindow):
 
     def update_button_visibility(self, person_name):
         if not person_name:
-            self.time_in_btn.setVisible(False)
-            self.time_out_btn.setVisible(False)
-            self.break_in_btn.setVisible(False)
-            self.break_out_btn.setVisible(False)
-            self.job_in_btn.setVisible(False)
-            self.job_out_btn.setVisible(False)
+            for btn in self.all_action_buttons:
+                btn.setVisible(False)
             self.add_face_btn.setVisible(True)
             self.is_user_blocked = False
+            self._rearrange_button_grid()
             return
         
         # ★★★ SYNC STATUS FROM SERVER FIRST ★★★
         if not self._sync_status_for_person(person_name):
-            # User is blocked - buttons already hidden by sync method
+            # User is blocked - buttons hidden, grid needs refresh
+            for btn in self.all_action_buttons:
+                btn.setVisible(False)
+            self._rearrange_button_grid()
             return
         
         # Use local state (now synced with server) for button visibility
@@ -2114,6 +2116,35 @@ class AttendanceKioskGUI(QMainWindow):
             self.job_out_btn.setVisible(False)
             
         self.add_face_btn.setVisible(True)
+        self._rearrange_button_grid()
+
+    def _rearrange_button_grid(self):
+        """Dynamically arrange visible buttons in a grid: max 2 per row."""
+        # 1. Clear layout
+        while self.button_layout.count():
+            item = self.button_layout.takeAt(0)
+            # Just remove, don't delete widgets
+            if item.widget():
+                item.widget().setParent(None)
+
+        # 2. Get visible buttons
+        visible_buttons = [btn for btn in self.all_action_buttons if btn.isVisible()]
+        
+        # 3. Add back to grid
+        num_visible = len(visible_buttons)
+        for i, btn in enumerate(visible_buttons):
+            row = i // 2
+            col = i % 2
+            
+            # If it's the last button and it's starting a new row, make it full width
+            if i == num_visible - 1 and col == 0:
+                self.button_layout.addWidget(btn, row, 0, 1, 2)
+            else:
+                self.button_layout.addWidget(btn, row, col)
+            
+            # Ensure it's parented to the frame so it shows up
+            btn.setParent(self.button_frame)
+            btn.setVisible(True)
 
     
     def handle_time_in(self):
