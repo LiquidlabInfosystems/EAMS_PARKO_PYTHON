@@ -542,18 +542,18 @@ class SimpleConfirmationDialog(QDialog):
     def init_ui(self):
         self.setWindowTitle("Confirm Identity")
         self.setModal(True)
-        self.setMinimumSize(pw(400), ph(260))
+        self.setMinimumSize(pw(350), ph(200))
 
         self.setStyleSheet(f"""
             QDialog {{ background-color: #1a1a1a; }}
-            QLabel {{ color: #ffffff; font-size: {pf(18)}px; padding: {ph(10)}px; }}
-            QLabel#title {{ color: #00ff88; font-size: {pf(24)}px; font-weight: bold; }}
-            QLabel#name  {{ color: #4a90e2; font-size: {pf(30)}px; font-weight: bold; }}
-            QLabel#action {{ color: #f5a623; font-size: {pf(20)}px; }}
+            QLabel {{ color: #ffffff; font-size: {pf(14)}px; padding: {ph(6)}px; }}
+            QLabel#title {{ color: #00ff88; font-size: {pf(16)}px; font-weight: bold; }}
+            QLabel#name  {{ color: #4a90e2; font-size: {pf(18)}px; font-weight: bold; }}
+            QLabel#action {{ color: #f5a623; font-size: {pf(12)}px; }}
             QPushButton {{
-                color: #ffffff; border: 2px solid; border-radius: {pw(10)}px;
-                font-size: {pf(18)}px; font-weight: bold;
-                padding: {ph(14)}px {pw(24)}px; min-width: {pw(140)}px;
+                color: #ffffff; border: 2px solid; border-radius: {pw(8)}px;
+                font-size: {pf(12)}px; font-weight: bold;
+                padding: {ph(8)}px {pw(16)}px; min-width: {pw(100)}px;
             }}
             QPushButton#confirm {{ background-color: #00aa66; border-color: #00ff88; }}
             QPushButton#confirm:hover {{ background-color: #00cc77; }}
@@ -562,8 +562,8 @@ class SimpleConfirmationDialog(QDialog):
         """)
 
         layout = QVBoxLayout(self)
-        layout.setSpacing(ph(16))
-        layout.setContentsMargins(pw(30), ph(30), pw(30), ph(30))
+        layout.setSpacing(ph(10))
+        layout.setContentsMargins(pw(20), ph(20), pw(20), ph(20))
 
         title = QLabel("⚠ Confirm Your Identity")
         title.setObjectName("title")
@@ -582,11 +582,11 @@ class SimpleConfirmationDialog(QDialog):
 
         question = QLabel("Is this you?")
         question.setAlignment(Qt.AlignCenter)
-        question.setStyleSheet(f"font-size: {pf(18)}px; color: #aaaaaa;")
+        question.setStyleSheet(f"font-size: {pf(12)}px; color: #aaaaaa;")
         layout.addWidget(question)
 
         button_layout = QHBoxLayout()
-        button_layout.setSpacing(pw(16))
+        button_layout.setSpacing(pw(12))
 
         confirm_btn = QPushButton("✅ Yes, Confirm")
         confirm_btn.setObjectName("confirm")
@@ -874,54 +874,54 @@ class AttendanceKioskGUI(QMainWindow):
         self.progress_bar.setVisible(False)
         self.main_layout.addWidget(self.progress_bar)
 
-        # Normal buttons
+        # Action buttons container - switched to QVBoxLayout for better alignment
         self.button_frame = QFrame()
         self.button_frame.setObjectName("buttonContainer")
-        button_layout = QGridLayout(self.button_frame)
-        button_layout.setSpacing(10)
-        button_layout.setContentsMargins(20, 10, 20, 10)
+        button_layout = QVBoxLayout(self.button_frame)
+        button_layout.setSpacing(ph(10))
+        button_layout.setContentsMargins(pw(30), ph(10), pw(30), ph(10))
 
         self.time_in_btn = QPushButton("\U0001F551 TIME IN")
         self.time_in_btn.setObjectName("timeIn")
         self.time_in_btn.clicked.connect(self.handle_time_in)
         self.time_in_btn.setCursor(Qt.PointingHandCursor)
-        button_layout.addWidget(self.time_in_btn, 0, 0)
+        button_layout.addWidget(self.time_in_btn)
 
         self.time_out_btn = QPushButton("\U0001F551 TIME OUT")
         self.time_out_btn.setObjectName("timeOut")
         self.time_out_btn.clicked.connect(self.handle_time_out)
         self.time_out_btn.setCursor(Qt.PointingHandCursor)
-        button_layout.addWidget(self.time_out_btn, 0, 1)
+        button_layout.addWidget(self.time_out_btn)
 
         self.break_in_btn = QPushButton("\U00002615 BREAK START")
         self.break_in_btn.setObjectName("breakIn")
         self.break_in_btn.clicked.connect(self.handle_break_in)
         self.break_in_btn.setCursor(Qt.PointingHandCursor)
-        button_layout.addWidget(self.break_in_btn, 1, 0)
+        button_layout.addWidget(self.break_in_btn)
 
         self.break_out_btn = QPushButton("\U00002615 BREAK END")
         self.break_out_btn.setObjectName("breakOut")
         self.break_out_btn.clicked.connect(self.handle_break_out)
         self.break_out_btn.setCursor(Qt.PointingHandCursor)
-        button_layout.addWidget(self.break_out_btn, 1, 1)
+        button_layout.addWidget(self.break_out_btn)
 
         self.job_in_btn = QPushButton("\U0001F4BC JOB START")
         self.job_in_btn.setObjectName("jobIn")
         self.job_in_btn.clicked.connect(self.handle_job_in)
         self.job_in_btn.setCursor(Qt.PointingHandCursor)
-        button_layout.addWidget(self.job_in_btn, 2, 0)
+        button_layout.addWidget(self.job_in_btn)
 
         self.job_out_btn = QPushButton("\U0001F4BC JOB END")
         self.job_out_btn.setObjectName("jobOut")
         self.job_out_btn.clicked.connect(self.handle_job_out)
         self.job_out_btn.setCursor(Qt.PointingHandCursor)
-        button_layout.addWidget(self.job_out_btn, 2, 1)
+        button_layout.addWidget(self.job_out_btn)
 
         self.add_face_btn = QPushButton("\U0001F464 ADD NEW FACE")
         self.add_face_btn.setObjectName("addFace")
         self.add_face_btn.clicked.connect(self.start_registration)
         self.add_face_btn.setCursor(Qt.PointingHandCursor)
-        button_layout.addWidget(self.add_face_btn, 3, 0, 1, 2)
+        button_layout.addWidget(self.add_face_btn)
 
         self.main_layout.addWidget(self.button_frame)
 
@@ -2089,12 +2089,23 @@ class AttendanceKioskGUI(QMainWindow):
         can_break_end, _ = self.state_manager.can_break_end(person_name)
         can_job_start, _ = self.state_manager.can_job_start(person_name)
         can_job_end, _ = self.state_manager.can_job_end(person_name)
-        self.time_in_btn.setVisible(can_time_in)
-        self.time_out_btn.setVisible(can_time_out)
-        self.break_in_btn.setVisible(can_break_start)
-        self.break_out_btn.setVisible(can_break_end)
-        self.job_in_btn.setVisible(can_job_start)
-        self.job_out_btn.setVisible(can_job_end)
+
+        # Logic override: If person is currently ON A JOB, only show JOB END button
+        if can_job_end:
+            self.time_in_btn.setVisible(False)
+            self.time_out_btn.setVisible(False)
+            self.break_in_btn.setVisible(False)
+            self.break_out_btn.setVisible(False)
+            self.job_in_btn.setVisible(False)
+            self.job_out_btn.setVisible(True)
+        else:
+            self.time_in_btn.setVisible(can_time_in)
+            self.time_out_btn.setVisible(can_time_out)
+            self.break_in_btn.setVisible(can_break_start)
+            self.break_out_btn.setVisible(can_break_end)
+            self.job_in_btn.setVisible(can_job_start)
+            self.job_out_btn.setVisible(False)
+            
         self.add_face_btn.setVisible(True)
 
     

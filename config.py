@@ -8,14 +8,16 @@ API_ENABLED = True  # Set to False to disable API sending
 
 # Server configuration
 API_SERVER_IP = "3.109.106.154"
-# API_SERVER_IP = "192.168.1.18"
+API_SERVER_DOMAIN = "https://parko.in"
+# API_SERVER_IP = "192.168.1.8"
+SERVER_AS_DOMAIN = False  # If True, use domain (ignores port); if False, use IP with port
 
 API_SERVER_PORT = 3008
 API_ENDPOINT = "/api/attendance/record"  # ← API endpoint path
 API_TIMEOUT = 15  # Request timeout in seconds
 
 # API Health Check Settings
-API_HEALTH_ENDPOINT = "/health"
+API_HEALTH_ENDPOINT = "/api/health"
 API_HEALTH_CHECK_INTERVAL = 30  # seconds
 
 # API Retry Settings
@@ -55,7 +57,7 @@ IDENTITY_LOCK_TIME = 2.0  # Seconds to lock identity after recognition (anti-fli
 
 # MQTT Settings
 MQTT_ENABLED = True
-MQTT_BROKER_HOST = "3.109.106.154"
+MQTT_BROKER_HOST = "https://parko.in"
 # MQTT_BROKER_HOST = "192.168.1.18"
 MQTT_BROKER_PORT = 1869
 MQTT_TOPIC = "incidents/"

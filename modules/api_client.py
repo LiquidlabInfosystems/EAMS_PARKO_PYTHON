@@ -46,6 +46,7 @@ class AttendanceAPIClient:
         self.server_port = server_port if server_port is not None else config.API_SERVER_PORT
         self.endpoint = endpoint if endpoint is not None else config.API_ENDPOINT
         self.timeout = timeout if timeout is not None else config.API_TIMEOUT
+        self.server_as_domain = config.SERVER_AS_DOMAIN
 
         # Health check endpoint
         self.health_endpoint = health_endpoint if health_endpoint is not None else config.API_HEALTH_ENDPOINT
@@ -53,8 +54,15 @@ class AttendanceAPIClient:
         self.health_check_interval = health_check_interval if health_check_interval is not None else config.API_HEALTH_CHECK_INTERVAL
 
         # Build URLs
-        self.base_url = f"http://{self.server_ip}:{self.server_port}{self.endpoint}"
-        self.health_url = f"http://{self.server_ip}:{self.server_port}{self.health_endpoint}"
+        if self.server_as_domain:
+            # Use domain without port
+            self.server_domain = config.API_SERVER_DOMAIN
+            self.base_url = f"{self.server_domain}{self.endpoint}"
+            self.health_url = f"{self.server_domain}{self.health_endpoint}"
+        else:
+            # Use IP with port
+            self.base_url = f"http://{self.server_ip}:{self.server_port}{self.endpoint}"
+            self.health_url = f"http://{self.server_ip}:{self.server_port}{self.health_endpoint}"
 
         # Queues
         self.event_queue = Queue()  # For new events
@@ -81,7 +89,10 @@ class AttendanceAPIClient:
         self.retry_thread.start()
 
         print(f"✓ API Client initialized")
-        print(f"  └─ Server: {self.server_ip}:{self.server_port}")
+        if self.server_as_domain:
+            print(f"  └─ Server: {self.server_domain} (domain mode)")
+        else:
+            print(f"  └─ Server: {self.server_ip}:{self.server_port}")
         print(f"  └─ Endpoint: {self.endpoint}")
         print(f"  └─ Health: {self.health_endpoint}")
         print(f"  └─ Full URL: {self.base_url}")
