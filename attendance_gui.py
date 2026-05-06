@@ -847,6 +847,7 @@ class AttendanceKioskGUI(QMainWindow):
         self.feedback_label = QLabel("")
         self.feedback_label.setObjectName("feedback")
         self.feedback_label.setAlignment(Qt.AlignCenter)
+        self.feedback_label.setWordWrap(True)
         self.feedback_label.setVisible(False)
         self.main_layout.addWidget(self.feedback_label)
 
@@ -986,10 +987,10 @@ class AttendanceKioskGUI(QMainWindow):
 
         self.setStyleSheet(f"""
             QMainWindow {{ background-color: #1a1a1a; }}
-            QLabel#title {{ color: #ffffff; font-size: {_pf(18)}px; font-weight: bold; padding: {_ph(10)}px; }}
-            QLabel#status {{ color: #00ff88; font-size: {_pf(14)}px; padding: {_ph(5)}px; }}
-            QLabel#instruction {{ color: #00ff88; font-size: {_pf(16)}px; font-weight: bold; padding: {_ph(8)}px; }}
-            QLabel#feedback {{ color: #ffffff; font-size: {_pf(14)}px; font-weight: bold; padding: {_ph(5)}px; }}
+            QLabel#title {{ color: #ffffff; font-size: {_pf(16)}px; font-weight: bold; padding: {_ph(5)}px; }}
+            QLabel#status {{ color: #00ff88; font-size: {_pf(13)}px; padding: {_ph(3)}px; }}
+            QLabel#instruction {{ color: #00ff88; font-size: {_pf(15)}px; font-weight: bold; padding: {_ph(5)}px; }}
+            QLabel#feedback {{ color: #ffffff; font-size: {_pf(15)}px; font-weight: bold; padding: {_ph(5)}px; }}
             QLabel#camera {{ background-color: #000000; border: 3px solid #00ff88; border-radius: {_pw(10)}px; }}
             QPushButton {{
                 background-color: #2d2d2d; color: #ffffff; border: 2px solid #4d4d4d;
@@ -1020,9 +1021,9 @@ class AttendanceKioskGUI(QMainWindow):
         
         # We can also update feedback label manually if it has overrides
         if self.feedback_label.text().startswith("✅"):
-            self.feedback_label.setStyleSheet(f"color: #00ff88; font-size: {_pf(20)}px; font-weight: bold; padding: {_ph(10)}px;")
+            self.feedback_label.setStyleSheet(f"color: #00ff88; font-size: {_pf(15)}px; font-weight: bold; padding: {_ph(5)}px; background: transparent; border: none;")
         elif self.feedback_label.text().startswith("❌"):
-            self.feedback_label.setStyleSheet(f"color: #ff4444; font-size: {_pf(20)}px; font-weight: bold; padding: {_ph(10)}px;")
+            self.feedback_label.setStyleSheet(f"color: #ff4444; font-size: {_pf(15)}px; font-weight: bold; padding: {_ph(5)}px; background: transparent; border: none;")
 
 
     def init_camera(self):
@@ -1240,11 +1241,17 @@ class AttendanceKioskGUI(QMainWindow):
         frame[:] = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
 
     def show_feedback(self, message, is_success):
-        """Show feedback with 3-second auto-fade"""
-        if is_success:
-            self.feedback_label.setStyleSheet("color: #00ff88; font-size: 20px; font-weight: bold; padding: 10px;")
-        else:
-            self.feedback_label.setStyleSheet("color: #ff4444; font-size: 20px; font-weight: bold; padding: 10px;")
+        """Show feedback with 3-second auto-fade using scaled UI"""
+        color = "#00ff88" if is_success else "#ff4444"
+        
+        self.feedback_label.setStyleSheet(f"""
+            color: {color}; 
+            font-size: {pf(15)}px; 
+            font-weight: bold; 
+            padding: {ph(5)}px;
+            background: transparent;
+            border: none;
+        """)
 
         self.feedback_label.setText(message)
         self.feedback_label.setVisible(True)
@@ -1252,7 +1259,6 @@ class AttendanceKioskGUI(QMainWindow):
         if self.feedback_timer:
             self.feedback_timer.stop()
 
-        # ★★★ CHANGED: 3 seconds instead of 2 ★★★
         self.feedback_timer = QTimer()
         self.feedback_timer.timeout.connect(lambda: self.feedback_label.setVisible(False))
         self.feedback_timer.setSingleShot(True)
