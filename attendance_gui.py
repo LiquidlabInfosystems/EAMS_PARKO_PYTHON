@@ -1317,7 +1317,7 @@ class AttendanceKioskGUI(QMainWindow):
         self.feedback_timer = QTimer()
         self.feedback_timer.timeout.connect(lambda: self.feedback_label.setVisible(False))
         self.feedback_timer.setSingleShot(True)
-        self.feedback_timer.start(3000)  # 3 seconds
+        self.feedback_timer.start(int(config.IDENTITY_LOCK_TIME * 1000))
 
 
     def process_frame(self):
@@ -1357,7 +1357,7 @@ class AttendanceKioskGUI(QMainWindow):
                         self.no_face_timeout = QTimer()
                         self.no_face_timeout.setSingleShot(True)
                         self.no_face_timeout.timeout.connect(self._reset_face_confirmation)
-                        self.no_face_timeout.start(3000)  # 3 seconds
+                        self.no_face_timeout.start(int(config.IDENTITY_LOCK_TIME * 1000))
                 else:
                     # Face still present, cancel any timeout
                     if self.no_face_timeout:
@@ -1374,6 +1374,10 @@ class AttendanceKioskGUI(QMainWindow):
                             self.processing = False
                             return
                 
+                # Ensure action buttons stay visible while confirmed
+                if not self.button_frame.isVisible():
+                    self.button_frame.setVisible(True)
+
                 # Display the frozen frame with confirmation overlay
                 self.display_frame(self.confirmed_frame)
                 self.processing = False
@@ -1414,7 +1418,7 @@ class AttendanceKioskGUI(QMainWindow):
                             self.no_face_timeout = QTimer()
                             self.no_face_timeout.setSingleShot(True)
                             self.no_face_timeout.timeout.connect(self.show_welcome_screen)
-                            self.no_face_timeout.start(3000)  # 3 seconds
+                            self.no_face_timeout.start(int(config.IDENTITY_LOCK_TIME * 1000))
             # ★★★ END WELCOME SCREEN LOGIC ★★★
 
             if self.registration_mode:
