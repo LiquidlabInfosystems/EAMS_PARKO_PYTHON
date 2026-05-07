@@ -825,15 +825,11 @@ class AttendanceKioskGUI(QMainWindow):
         self.welcome_widget = WelcomeScreen()
         self.display_stack.addWidget(self.welcome_widget)
 
-# Camera label (index 1)
+        # Camera label (index 1)
         self.camera_label = QLabel()
         self.camera_label.setObjectName("camera")
         self.camera_label.setAlignment(Qt.AlignCenter)
-        self.camera_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        # Set height based on INSIGHTFACE_DET_SIZE to leave room for buttons
-        det_height = config.INSIGHTFACE_DET_SIZE[1] if hasattr(config, 'INSIGHTFACE_DET_SIZE') else 320
-        self.camera_label.setMinimumHeight(det_height)
-        self.camera_label.setMaximumHeight(det_height)
+        self.camera_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
         self.display_stack.addWidget(self.camera_label)
 
         # Start with welcome screen
@@ -846,7 +842,7 @@ class AttendanceKioskGUI(QMainWindow):
         camera_page_layout.setSpacing(0)
         
         # Add display stack to camera page
-        camera_page_layout.addWidget(self.display_stack, stretch=1)
+        camera_page_layout.addWidget(self.display_stack)
         
         # Create pages stack for camera and admin pages
         self.pages_stack = QStackedWidget()
@@ -869,8 +865,7 @@ class AttendanceKioskGUI(QMainWindow):
         # Start with camera page
         self.pages_stack.setCurrentIndex(0)
         
-        # Give camera feed most of the space (stretch=3), buttons fixed height at bottom
-self.main_layout.addWidget(self.pages_stack, stretch=3)
+        self.main_layout.addWidget(self.pages_stack, stretch=1)
 
 
         # Action buttons container - switched to QGridLayout for 2-column layout
@@ -926,10 +921,9 @@ self.main_layout.addWidget(self.pages_stack, stretch=3)
 
         self.main_layout.addWidget(self.button_frame)
         
-        # Set button frame to fixed height to fit in remaining space
+        # Set button frame to use remaining space properly
         self.button_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        # Reduced height to fit within screen - adjust based on testing
-        self.button_frame.setFixedHeight(ph(100))
+        self.button_frame.setMinimumHeight(ph(100))
         # Initially hide buttons
         self.button_frame.setVisible(False)
         self.update_styles()
