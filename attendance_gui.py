@@ -1100,6 +1100,13 @@ class AttendanceKioskGUI(QMainWindow):
         """Handle registration completion or cancellation"""
         self.registration_mode = False
         self.event_in_progress = False
+        
+        # Restore main UI labels
+        self.title_label.setVisible(True)
+        self.status_label.setVisible(True)
+        self.instruction_label.setVisible(False)
+        self.feedback_label.setVisible(False)
+        
         self.show_camera_page()
         # Reset liveness and state
         if self.face_recognizer.liveness_detector:
@@ -1818,8 +1825,14 @@ class AttendanceKioskGUI(QMainWindow):
 
         # ── Step 3: Begin registration via dedicated module ──────────────────
         self.registration_mode = True
+        
+        # Hide main UI labels to give full space to registration page
+        self.title_label.setVisible(False)
+        self.status_label.setVisible(False)
+        self.instruction_label.setVisible(False)
+        self.feedback_label.setVisible(False)
+        
         self.registration_page.start_registration(name, employee_id, self.pages_stack)
-        self.status_label.setText(f"📸 Registering: {name}")
 
     def log_action(self, action, person):
         """Log action to file AND send to API"""

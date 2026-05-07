@@ -51,18 +51,18 @@ class RegistrationPage(QWidget):
         self.current_registration_step = 0
         self.current_frame = None
         
-        # Registration steps - 10 SAMPLES
+        # Registration steps - 10 SAMPLES (plain text icons for compatibility)
         self.registration_steps = [
-            {"instruction": "📸 Look Straight - Sample 1", "icon": "1️⃣"},
-            {"instruction": "📸 Look Straight - Sample 2", "icon": "2️⃣"},
-            {"instruction": "⬅️ Turn Head Left", "icon": "⬅️"},
-            {"instruction": "⬅️ Turn Left More", "icon": "⬅️"},
-            {"instruction": "➡️ Turn Head Right", "icon": "➡️"},
-            {"instruction": "➡️ Turn Right More", "icon": "➡️"},
-            {"instruction": "⬆️ Tilt Head Up", "icon": "⬆️"},
-            {"instruction": "⬇️ Tilt Head Down", "icon": "⬇️"},
-            {"instruction": "😊 Smile", "icon": "😊"},
-            {"instruction": "😐 Neutral Expression", "icon": "😐"}
+            {"instruction": "Look Straight - Sample 1", "icon": "[ 1 ]"},
+            {"instruction": "Look Straight - Sample 2", "icon": "[ 2 ]"},
+            {"instruction": "Turn Head Left", "icon": "<--"},
+            {"instruction": "Turn Left More", "icon": "<=="},
+            {"instruction": "Turn Head Right", "icon": "-->"},
+            {"instruction": "Turn Right More", "icon": "==>"},
+            {"instruction": "Tilt Head Up", "icon": "/\\"},
+            {"instruction": "Tilt Head Down", "icon": "\\/"},
+            {"instruction": "Smile", "icon": ":-)"},
+            {"instruction": "Neutral Expression", "icon": ":-|"}
         ]
         
         self.init_ui()
@@ -74,7 +74,7 @@ class RegistrationPage(QWidget):
         main_layout.setSpacing(5)
         
         # Title
-        self.title_label = QLabel("👤 Registering: ")
+        self.title_label = QLabel("Registering: ")
         self.title_label.setObjectName("title")
         self.title_label.setAlignment(Qt.AlignCenter)
         self.title_label.setWordWrap(True)
@@ -122,13 +122,13 @@ class RegistrationPage(QWidget):
         reg_button_layout.setSpacing(20)
         reg_button_layout.setContentsMargins(30, 20, 30, 20)
         
-        self.capture_btn = QPushButton("📸 CAPTURE")
+        self.capture_btn = QPushButton("CAPTURE")
         self.capture_btn.setObjectName("capture")
         self.capture_btn.clicked.connect(self.capture_registration_face)
         self.capture_btn.setCursor(Qt.PointingHandCursor)
         reg_button_layout.addWidget(self.capture_btn)
         
-        self.cancel_reg_btn = QPushButton("✖ CANCEL")
+        self.cancel_reg_btn = QPushButton("CANCEL")
         self.cancel_reg_btn.setObjectName("cancelReg")
         self.cancel_reg_btn.clicked.connect(self.cancel_registration)
         self.cancel_reg_btn.setCursor(Qt.PointingHandCursor)
@@ -187,19 +187,47 @@ class RegistrationPage(QWidget):
         
         # Switch to registration page in display stack
         if display_stack:
-            display_stack.setCurrentIndex(2)  # Assuming index 2 is registration page
+            # We are likely in pages_stack (index 2)
+            display_stack.setCurrentIndex(2)
+        
+        # Ensure camera label is visible and ready
+        self.camera_label.setVisible(True)
     
     def set_current_frame(self, frame_rgb):
         """Update current frame for processing"""
         self.current_frame = frame_rgb.copy()
     
     def display_camera_feed(self, frame_rgb):
-        """Display current camera frame"""
+        """Display current camera frame with proper scaling"""
+        if frame_rgb is None:
+            return
+            
         h, w, ch = frame_rgb.shape
         bytes_per_line = 3 * w
+        
+        # Ensure data is contiguous for QImage
+        if not frame_rgb.flags['C_CONTIGUOUS']:
+            frame_rgb = np.ascontiguousarray(frame_rgb)
+            
         qt_image = QImage(frame_rgb.data, w, h, bytes_per_line, QImage.Format_RGB888)
         pixmap = QPixmap.fromImage(qt_image)
-        self.camera_label.setPixmap(pixmap)
+        
+        # Scale pixmap to fit label while preserving aspect ratio
+        label_w = self.camera_label.width()
+        label_h = self.camera_label.height()
+        
+        if label_w > 0 and label_h > 0:
+            scaled_pixmap = pixmap.scaled(
+                label_w, 
+                label_h, 
+                Qt.KeepAspectRatio, 
+                Qt.SmoothTransformation
+            )
+            self.camera_label.setPixmap(scaled_pixmap)
+        else:
+            # Fallback if label not yet sized
+            self.camera_label.setPixmap(pixmap)
+            
         if not self.camera_label.isVisible():
             self.camera_label.setVisible(True)
     
@@ -209,8 +237,10 @@ class RegistrationPage(QWidget):
         self.feedback_label.setVisible(True)
         
         if is_success:
+            self.feedback_label.setText(f"ACCEPTED: {message}")
             self.feedback_label.setStyleSheet("color: #00ff88; font-weight: bold;")
         else:
+            self.feedback_label.setText(f"FAILED: {message}")
             self.feedback_label.setStyleSheet("color: #ff4444; font-weight: bold;")
         
         # Auto-fade after 2 seconds
@@ -243,11 +273,11 @@ class RegistrationPage(QWidget):
             )
             
             if is_valid and quality >= 0.7:
-                self.captured_faces.append(face_img)
+                self.captured_faces.append(face_img.copy()) # Copy to ensure persistence
                 self.current_registration_step += 1
                 self.progress_bar.setValue(len(self.captured_faces))
                 
-                self.show_feedback(f"✅ ACCEPTED! (Quality: {quality:.0%})", True)
+                self.show_feedback(f"OK ({quality:.0%})", True)
                 
                 if self.current_registration_step >= len(self.registration_steps):
                     self.capture_btn.setEnabled(False)
@@ -257,9 +287,9 @@ class RegistrationPage(QWidget):
                         self.registration_steps[self.current_registration_step]["instruction"]
                     )
             else:
-                self.show_feedback(f"❌ {message} (Quality: {quality:.0%}) - RETAKE!", False)
+                self.show_feedback(f"{message} ({quality:.0%})", False)
         else:
-            self.show_feedback("❌ Failed to extract face", False)
+            self.show_feedback("Extraction Error", False)
     
     def complete_registration(self):
         """Complete registration with auto-fading success"""
