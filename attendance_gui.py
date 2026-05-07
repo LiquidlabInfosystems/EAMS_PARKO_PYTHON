@@ -827,7 +827,7 @@ class AttendanceKioskGUI(QMainWindow):
         # Camera label (index 1)
         self.camera_label = QLabel()
         self.camera_label.setObjectName("camera")
-        self.camera_label.setAlignment(Qt.AlignCenter)
+        self.camera_label.setAlignment(Qt.AlignBottom | Qt.AlignHCenter)
         self.camera_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         # Set height based on INSIGHTFACE_DET_SIZE but allow it to shrink if needed
         det_height = config.INSIGHTFACE_DET_SIZE[1] if hasattr(config, 'INSIGHTFACE_DET_SIZE') else 320
@@ -868,8 +868,8 @@ class AttendanceKioskGUI(QMainWindow):
         # Start with camera page
         self.pages_stack.setCurrentIndex(0)
         
-        # Give camera feed most of the space (stretch=2), buttons fixed height at bottom
-        self.main_layout.addWidget(self.pages_stack, stretch=2)
+        # Give camera feed space, buttons fixed height at bottom
+        self.main_layout.addWidget(self.pages_stack)
 
 
         # Action buttons container - switched to QGridLayout for 2-column layout
@@ -928,7 +928,7 @@ class AttendanceKioskGUI(QMainWindow):
         # Set button frame to fixed height to fit in remaining space
         self.button_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         # ph(100) is about 100px on reference screen - adjust if still too large
-        self.button_frame.setFixedHeight(ph(130)) 
+        self.button_frame.setFixedHeight(ph(145)) 
         # Initially hide buttons
         self.button_frame.setVisible(False)
         self.update_styles()
