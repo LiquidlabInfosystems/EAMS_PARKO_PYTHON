@@ -832,7 +832,7 @@ class AttendanceKioskGUI(QMainWindow):
         # Set height based on INSIGHTFACE_DET_SIZE but allow it to shrink if needed
         det_height = config.INSIGHTFACE_DET_SIZE[1] if hasattr(config, 'INSIGHTFACE_DET_SIZE') else 320
         self.camera_label.setMinimumHeight(ph(350))
-        self.camera_label.setMaximumHeight(ph(650)) 
+        self.camera_label.setMaximumHeight(ph(750)) 
         self.display_stack.addWidget(self.camera_label)
 
         # Start with welcome screen
