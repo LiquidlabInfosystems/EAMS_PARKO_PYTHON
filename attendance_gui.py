@@ -880,31 +880,37 @@ class AttendanceKioskGUI(QMainWindow):
         self.time_in_btn.setObjectName("timeIn")
         self.time_in_btn.clicked.connect(self.handle_time_in)
         self.time_in_btn.setCursor(Qt.PointingHandCursor)
+        self.time_in_btn.setMinimumHeight(ph(45))
 
         self.time_out_btn = QPushButton("\U0001F551 TIME OUT")
         self.time_out_btn.setObjectName("timeOut")
         self.time_out_btn.clicked.connect(self.handle_time_out)
         self.time_out_btn.setCursor(Qt.PointingHandCursor)
+        self.time_out_btn.setMinimumHeight(ph(45))
 
         self.break_in_btn = QPushButton("\U00002615 BREAK START")
         self.break_in_btn.setObjectName("breakIn")
         self.break_in_btn.clicked.connect(self.handle_break_in)
         self.break_in_btn.setCursor(Qt.PointingHandCursor)
+        self.break_in_btn.setMinimumHeight(ph(45))
 
         self.break_out_btn = QPushButton("\U00002615 BREAK END")
         self.break_out_btn.setObjectName("breakOut")
         self.break_out_btn.clicked.connect(self.handle_break_out)
         self.break_out_btn.setCursor(Qt.PointingHandCursor)
+        self.break_out_btn.setMinimumHeight(ph(45))
 
         self.job_in_btn = QPushButton("\U0001F4BC JOB START")
         self.job_in_btn.setObjectName("jobIn")
         self.job_in_btn.clicked.connect(self.handle_job_in)
         self.job_in_btn.setCursor(Qt.PointingHandCursor)
+        self.job_in_btn.setMinimumHeight(ph(45))
 
         self.job_out_btn = QPushButton("\U0001F4BC JOB END")
         self.job_out_btn.setObjectName("jobOut")
         self.job_out_btn.clicked.connect(self.handle_job_out)
         self.job_out_btn.setCursor(Qt.PointingHandCursor)
+        self.job_out_btn.setMinimumHeight(ph(45))
 
         # Store all buttons in a list for easy management
         self.all_action_buttons = [
@@ -915,11 +921,9 @@ class AttendanceKioskGUI(QMainWindow):
 
         self.main_layout.addWidget(self.button_frame)
         
-        # Initially hide buttons
-        self.button_frame.setVisible(False)
-        self.main_layout.addStretch(1)
-
-
+        # Set button frame to use remaining space properly
+        self.button_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.button_frame.setMinimumHeight(ph(100))
         # Initially hide buttons
         self.button_frame.setVisible(False)
         self.update_styles()
@@ -1275,6 +1279,7 @@ class AttendanceKioskGUI(QMainWindow):
         self.last_stable_person = None
         self.event_in_progress = False
         self.current_recognized_person = None
+        self._buttons_shown_for_current_confirmation = None
         
         # Reset blocking state for new detection
         self.is_user_blocked = False
@@ -1601,7 +1606,10 @@ class AttendanceKioskGUI(QMainWindow):
                                         print("🔵 Setting button_frame.setVisible(True) - showing buttons")
                                         self.button_frame.setVisible(True)
                                         print(f"🔵 button_frame.isVisible() = {self.button_frame.isVisible()}")
-                                        self.update_button_visibility(name)
+                                        # Only call once - don't call again in the same frame
+                                        if not hasattr(self, '_buttons_shown_for_current_confirmation') or self._buttons_shown_for_current_confirmation != name:
+                                            self._buttons_shown_for_current_confirmation = name
+                                            self.update_button_visibility(name)
                                     
                                     # Display frozen frame immediately
                                     self.display_frame(frozen)
