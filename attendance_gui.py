@@ -831,8 +831,8 @@ class AttendanceKioskGUI(QMainWindow):
         self.camera_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         # Set height based on INSIGHTFACE_DET_SIZE but allow it to shrink if needed
         det_height = config.INSIGHTFACE_DET_SIZE[1] if hasattr(config, 'INSIGHTFACE_DET_SIZE') else 320
-        self.camera_label.setMinimumHeight(ph(200))
-        self.camera_label.setMaximumHeight(ph(400)) 
+        self.camera_label.setMinimumHeight(ph(150))
+        self.camera_label.setMaximumHeight(ph(550)) 
         self.display_stack.addWidget(self.camera_label)
 
         # Start with welcome screen
@@ -868,53 +868,53 @@ class AttendanceKioskGUI(QMainWindow):
         # Start with camera page
         self.pages_stack.setCurrentIndex(0)
         
-        # Give camera feed most of the space (stretch=3), buttons fixed height at bottom
-        self.main_layout.addWidget(self.pages_stack, stretch=3)
+        # Give camera feed most of the space (stretch=2), buttons fixed height at bottom
+        self.main_layout.addWidget(self.pages_stack, stretch=2)
 
 
         # Action buttons container - switched to QGridLayout for 2-column layout
         self.button_frame = QFrame()
         self.button_frame.setObjectName("buttonContainer")
         self.button_layout = QGridLayout(self.button_frame)
-        self.button_layout.setSpacing(ph(6))
+        self.button_layout.setSpacing(ph(4))
         # Reduced side padding for better width usage
-        self.button_layout.setContentsMargins(pw(15), ph(5), pw(15), ph(5))
+        self.button_layout.setContentsMargins(pw(15), ph(4), pw(15), ph(4))
 
         self.time_in_btn = QPushButton("🕒 TIME IN")
         self.time_in_btn.setObjectName("timeIn")
         self.time_in_btn.clicked.connect(self.handle_time_in)
         self.time_in_btn.setCursor(Qt.PointingHandCursor)
-        self.time_in_btn.setMinimumHeight(ph(40))
+        self.time_in_btn.setMinimumHeight(ph(35))
 
         self.time_out_btn = QPushButton("🕒 TIME OUT")
         self.time_out_btn.setObjectName("timeOut")
         self.time_out_btn.clicked.connect(self.handle_time_out)
         self.time_out_btn.setCursor(Qt.PointingHandCursor)
-        self.time_out_btn.setMinimumHeight(ph(40))
+        self.time_out_btn.setMinimumHeight(ph(35))
 
         self.break_in_btn = QPushButton("☕ BREAK START")
         self.break_in_btn.setObjectName("breakIn")
         self.break_in_btn.clicked.connect(self.handle_break_in)
         self.break_in_btn.setCursor(Qt.PointingHandCursor)
-        self.break_in_btn.setMinimumHeight(ph(40))
+        self.break_in_btn.setMinimumHeight(ph(35))
 
         self.break_out_btn = QPushButton("☕ BREAK END")
         self.break_out_btn.setObjectName("breakOut")
         self.break_out_btn.clicked.connect(self.handle_break_out)
         self.break_out_btn.setCursor(Qt.PointingHandCursor)
-        self.break_out_btn.setMinimumHeight(ph(40))
+        self.break_out_btn.setMinimumHeight(ph(35))
 
         self.job_in_btn = QPushButton("💼 JOB START")
         self.job_in_btn.setObjectName("jobIn")
         self.job_in_btn.clicked.connect(self.handle_job_in)
         self.job_in_btn.setCursor(Qt.PointingHandCursor)
-        self.job_in_btn.setMinimumHeight(ph(40))
+        self.job_in_btn.setMinimumHeight(ph(35))
 
         self.job_out_btn = QPushButton("💼 JOB END")
         self.job_out_btn.setObjectName("jobOut")
         self.job_out_btn.clicked.connect(self.handle_job_out)
         self.job_out_btn.setCursor(Qt.PointingHandCursor)
-        self.job_out_btn.setMinimumHeight(ph(40))
+        self.job_out_btn.setMinimumHeight(ph(35))
 
         # Store all buttons in a list for easy management
         self.all_action_buttons = [
@@ -928,7 +928,7 @@ class AttendanceKioskGUI(QMainWindow):
         # Set button frame to fixed height to fit in remaining space
         self.button_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         # ph(100) is about 100px on reference screen - adjust if still too large
-        self.button_frame.setFixedHeight(ph(160)) 
+        self.button_frame.setFixedHeight(ph(130)) 
         # Initially hide buttons
         self.button_frame.setVisible(False)
         self.update_styles()
@@ -986,7 +986,7 @@ class AttendanceKioskGUI(QMainWindow):
             QPushButton#cancelReg {{ background-color: #cc3333; border-color: #ff4444; font-size: {_pf(18)}px; }}
             QPushButton#adminIcon {{ background-color: #ff8c00; border-color: #ffaa00; font-size: {_pf(12)}px; }}
             QPushButton#adminIcon:hover {{ background-color: #ffaa00; }}
-            QFrame#buttonContainer {{ background-color: #0d0d0d; border-top: 3px solid #00ff88; padding: {_ph(5)}px; }}
+            QFrame#buttonContainer {{ background-color: #0d0d0d; border-top: 3px solid #00ff88; padding: {_ph(3)}px; }}
             QProgressBar {{
                 border: 2px solid #4a90e2; border-radius: {_pw(5)}px; text-align: center;
                 color: #ffffff; font-weight: bold; min-height: {_ph(30)}px; font-size: {_pf(16)}px;
