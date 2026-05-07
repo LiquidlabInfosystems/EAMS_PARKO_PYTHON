@@ -680,11 +680,6 @@ class AttendanceKioskGUI(QMainWindow):
         self.current_recognized_person = None
         self.locked_person_for_action = None
         self.locked_person_timestamp = None
-        
-        # Identity lock for action buttons (persists for IDENTITY_LOCK_TIME)
-        self.identity_lock_start = 0.0  # Timestamp of last identity confirmation
-        self.locked_identity = None     # Confirmed identity during lock period
-        self.IDENTITY_LOCK_DURATION = config.IDENTITY_LOCK_TIME  # From config.py (3.0s)
 
         # Adaptive learning counter
         self.adaptive_learning_count = 0
@@ -1211,12 +1206,6 @@ class AttendanceKioskGUI(QMainWindow):
 
     def show_welcome_screen(self):
         """Switch to welcome screen when no face detected for 3 seconds"""
-        # Check identity lock before showing welcome screen
-        if (self.identity_lock_start > 0 and 
-            (time.time() - self.identity_lock_start) < self.IDENTITY_LOCK_DURATION):
-            # Still within lock time - keep current screen and buttons
-            return
-            
         print("📺 No face detected - showing welcome screen")
         self.display_stack.setCurrentIndex(0)  # Switch to welcome
         self.button_frame.setVisible(False)  # Hide buttons
@@ -1542,10 +1531,6 @@ class AttendanceKioskGUI(QMainWindow):
                                     self.confirmed_person_name = name
                                     self.confirmed_person_similarity = similarity
                                     
-                                    # Start identity lock timer
-                                    self.identity_lock_start = current_time
-                                    self.locked_identity = name
-                                    
                                     # Create frozen frame with prominent name display
                                     frozen = display_frame.copy()
                                     
@@ -1600,18 +1585,12 @@ class AttendanceKioskGUI(QMainWindow):
                             else:
                                 self.confirmation_start_time = current_time
                         else:
-                            # Different person - check identity lock before reset
-                            if (self.identity_lock_start > 0 and 
-                                (current_time - self.identity_lock_start) < self.IDENTITY_LOCK_DURATION):
-                                # Still within lock time - keep showing buttons for locked identity
-                                pass
-                            else:
-                                # Lock expired or no lock - reset confirmation timer
-                                self.last_stable_person = name
-                                self.confirmation_start_time = current_time
-                                self.face_confirmed = False
-                                self.confirmed_person_name = None
-                                self.confirmed_frame = None
+                            # Different person - reset confirmation timer
+                            self.last_stable_person = name
+                            self.confirmation_start_time = current_time
+                            self.face_confirmed = False
+                            self.confirmed_person_name = None
+                            self.confirmed_frame = None
                         # ★★★ END FACE CONFIRMATION LOGIC ★★★
 
                         verified = ""
@@ -1738,19 +1717,13 @@ class AttendanceKioskGUI(QMainWindow):
                     self.status_label.setText("⏳ Detecting...")
 
                 else:
-                    # ★★★ NO FACE - Check identity lock before reset ★★★
-                    current_time = time.time()
-                    if self.identity_lock_start > 0 and (current_time - self.identity_lock_start) < self.IDENTITY_LOCK_DURATION:
-                        # Still within lock time - keep buttons visible
-                        pass
-                    else:
-                        # ★★★ NO FACE - RESET UNKNOWN TIMER ★★★
-                        if self.unknown_person_start_time is not None:
-                            print("👤 Unknown person left frame, timer reset")
-                            self.unknown_person_start_time = None
-                            self.unknown_person_embedding = None
-                            self.unknown_person_id = None
-                            self.update_button_visibility(None)
+                    # ★★★ NO FACE - RESET UNKNOWN TIMER ★★★
+                    if self.unknown_person_start_time is not None:
+                        print("👤 Unknown person left frame, timer reset")
+                        self.unknown_person_start_time = None
+                        self.unknown_person_embedding = None
+                        self.unknown_person_id = None
+                        self.update_button_visibility(None)
 
 
                     # No face - track time
@@ -1773,20 +1746,6 @@ class AttendanceKioskGUI(QMainWindow):
                 # Only display frame if camera view is active
                 if self.display_stack.currentIndex() == 1:
                     self.display_frame(display_frame)
-                
-                # Check if identity lock has expired
-                current_time = time.time()
-                if (self.identity_lock_start > 0 and 
-                    (current_time - self.identity_lock_start) >= self.IDENTITY_LOCK_DURATION):
-                    # Lock expired - reset state
-                    print("🔒 Identity lock expired")
-                    self.identity_lock_start = 0.0
-                    self.locked_identity = None
-                    if self.face_confirmed:
-                        self.face_confirmed = False
-                        self.confirmed_person_name = None
-                        self.confirmed_frame = None
-                        self.button_frame.setVisible(False)
 
         except Exception as e:
             print(f"Processing error: {e}")
