@@ -700,7 +700,6 @@ class AttendanceKioskGUI(QMainWindow):
 
         # Welcome screen state
         self.no_face_timeout = None
-        self.button_hide_timer = None  # Timer to auto-hide buttons after IDENTITY_LOCK_TIME
 
         # ★★★ FACE CONFIRMATION & FREEZE STATE ★★★
         self.face_confirmed = False              # Is face confirmed and frozen?
@@ -830,10 +829,7 @@ class AttendanceKioskGUI(QMainWindow):
         self.camera_label = QLabel()
         self.camera_label.setObjectName("camera")
         self.camera_label.setAlignment(Qt.AlignCenter)
-        self.camera_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        # Set height based on INSIGHTFACE_DET_SIZE to leave room for buttons
-        det_height = config.INSIGHTFACE_DET_SIZE[1] if hasattr(config, 'INSIGHTFACE_DET_SIZE') else 320
-        self.camera_label.setMinimumHeight(det_height)
+        self.camera_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
         self.display_stack.addWidget(self.camera_label)
 
         # Start with welcome screen
@@ -1285,17 +1281,6 @@ class AttendanceKioskGUI(QMainWindow):
         self.current_recognized_person = None
         self._buttons_shown_for_current_confirmation = None
         
-        # Cancel button hide timer
-        if self.button_hide_timer:
-            self.button_hide_timer.stop()
-            self.button_hide_timer = None
-    
-    def _hide_buttons_after_timeout(self):
-        """Hide buttons after IDENTITY_LOCK_TIME seconds"""
-        print("🔴 Auto-hiding buttons after timeout")
-        self.button_frame.setVisible(False)
-        self.button_hide_timer = None
-        
         # Reset blocking state for new detection
         self.is_user_blocked = False
         self.blocked_message = ""
@@ -1625,14 +1610,6 @@ class AttendanceKioskGUI(QMainWindow):
                                         if not hasattr(self, '_buttons_shown_for_current_confirmation') or self._buttons_shown_for_current_confirmation != name:
                                             self._buttons_shown_for_current_confirmation = name
                                             self.update_button_visibility(name)
-                                        
-                                        # Start timer to hide buttons after IDENTITY_LOCK_TIME
-                                        if self.button_hide_timer:
-                                            self.button_hide_timer.stop()
-                                        self.button_hide_timer = QTimer()
-                                        self.button_hide_timer.setSingleShot(True)
-                                        self.button_hide_timer.timeout.connect(self._hide_buttons_after_timeout)
-                                        self.button_hide_timer.start(int(config.IDENTITY_LOCK_TIME * 1000))
                                     
                                     # Display frozen frame immediately
                                     self.display_frame(frozen)
