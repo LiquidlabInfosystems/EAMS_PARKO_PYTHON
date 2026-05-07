@@ -860,7 +860,7 @@ class AttendanceKioskGUI(QMainWindow):
 
         # Stacked widget for welcome screen and camera feed
         self.display_stack = QStackedWidget()
-        # Removed fixed minimum size to allow fitting on smaller screens
+        self.display_stack.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 
         # Welcome screen (index 0)
         self.welcome_widget = WelcomeScreen()
@@ -903,6 +903,7 @@ class AttendanceKioskGUI(QMainWindow):
         
         # Create pages stack for camera and admin pages
         self.pages_stack = QStackedWidget()
+        self.pages_stack.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         
         # Page 0: Camera page
         self.pages_stack.addWidget(self.camera_page_widget)
@@ -977,9 +978,9 @@ class AttendanceKioskGUI(QMainWindow):
             self.job_in_btn, self.job_out_btn
         ]
 
+        # Add admin button first (so it's below in the layout if added before buttons? No, main_layout is top-down)
+        # To have actions ABOVE admin, we add actions first.
         self.main_layout.addWidget(self.button_frame)
-        
-        # Add admin button at the very bottom
         self.main_layout.addWidget(self.admin_button_container)
         
         self.main_layout.addStretch(1)
@@ -1319,6 +1320,13 @@ class AttendanceKioskGUI(QMainWindow):
             )
 
             self.camera_label.setPixmap(scaled_pixmap)
+            
+            # Update container heights to match camera exactly but allow growth
+            self.display_stack.setMinimumHeight(target_height)
+            self.display_stack.setMaximumHeight(target_height)
+            self.pages_stack.setMinimumHeight(target_height)
+            # self.pages_stack.setMaximumHeight(target_height + 200) # Allow some room for other things if needed
+            
         except Exception as e:
             print(f"Display error: {e}")
 
@@ -2095,6 +2103,7 @@ class AttendanceKioskGUI(QMainWindow):
             self.job_out_btn.setVisible(False)
         
         self._rearrange_button_grid()
+        self.button_frame.setVisible(any(btn.isVisible() for btn in self.all_action_buttons))
 
     def _rearrange_button_grid(self):
         """Dynamically arrange visible buttons in a grid: max 2 per row."""
