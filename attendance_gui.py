@@ -973,6 +973,7 @@ class AttendanceKioskGUI(QMainWindow):
         ]
 
         self.main_layout.addWidget(self.button_frame)
+        self.main_layout.addStretch(1)
 
 
         # Initially hide buttons

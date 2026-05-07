@@ -224,18 +224,14 @@ class RegistrationPage(QWidget):
             label_h = self.camera_label.height()
             
             if label_w > 50:
-                # Calculate correct height to maintain aspect ratio without black bars
-                aspect_ratio = h / w
-                target_height = int(label_w * aspect_ratio)
-                
-                # Update label height if it changed significantly
-                if not hasattr(self, '_last_target_h') or abs(self._last_target_h - target_height) > 5:
-                    self.camera_label.setFixedHeight(target_height)
-                    self._last_target_h = target_height
+                # Set label height to match raw video frame height exactly
+                if not hasattr(self, '_last_target_h') or self._last_target_h != h:
+                    self.camera_label.setFixedHeight(h)
+                    self._last_target_h = h
                 
                 scaled_pixmap = pixmap.scaled(
                     label_w, 
-                    target_height, 
+                    h, 
                     Qt.KeepAspectRatio, 
                     Qt.SmoothTransformation
                 )
