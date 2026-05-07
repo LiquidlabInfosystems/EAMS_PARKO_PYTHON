@@ -186,6 +186,11 @@ class RegistrationPage(QWidget):
         self.reg_button_frame.setVisible(True)
         self.capture_btn.setEnabled(True)
         
+        # Reset height flag to allow re-calculating based on new frame if needed
+        if hasattr(self, '_height_set'):
+            delattr(self, '_height_set')
+            self.camera_label.setMaximumHeight(16777215) # Reset to default
+        
         # Switch to registration page in display stack
         if display_stack:
             # We are likely in pages_stack (index 2)
@@ -224,9 +229,14 @@ class RegistrationPage(QWidget):
             label_h = self.camera_label.height()
             
             if label_w > 50 and label_h > 50:
+                # Set fixed height once to match video frame height if requested
+                if not hasattr(self, '_height_set'):
+                    self.camera_label.setFixedHeight(h)
+                    self._height_set = True
+                
                 scaled_pixmap = pixmap.scaled(
                     label_w, 
-                    label_h, 
+                    h, # Use frame height as target
                     Qt.KeepAspectRatio, 
                     Qt.SmoothTransformation
                 )
