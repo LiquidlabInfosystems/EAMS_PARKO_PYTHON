@@ -928,7 +928,7 @@ class AttendanceKioskGUI(QMainWindow):
         # Set button frame to fixed height to fit in remaining space
         self.button_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         # ph(100) is about 100px on reference screen - adjust if still too large
-        self.button_frame.setFixedHeight(ph(165)) 
+        self.button_frame.setFixedHeight(ph(15)) 
         # Initially hide buttons
         self.button_frame.setVisible(False)
         self.update_styles()
