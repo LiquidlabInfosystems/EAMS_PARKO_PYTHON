@@ -198,38 +198,46 @@ class RegistrationPage(QWidget):
         self.current_frame = frame_rgb.copy()
     
     def display_camera_feed(self, frame_rgb):
-        """Display current camera frame with proper scaling"""
+        """Display current camera frame with proper scaling and format"""
         if frame_rgb is None:
             return
             
-        h, w, ch = frame_rgb.shape
-        bytes_per_line = 3 * w
-        
-        # Ensure data is contiguous for QImage
-        if not frame_rgb.flags['C_CONTIGUOUS']:
-            frame_rgb = np.ascontiguousarray(frame_rgb)
+        try:
+            # Replicate main app's display logic: Convert/Copy frame
+            # Channel swap (RGB <-> BGR) to match QImage.Format_RGB888 expectations
+            frame_to_show = frame_rgb[:, :, ::-1].copy()
             
-        qt_image = QImage(frame_rgb.data, w, h, bytes_per_line, QImage.Format_RGB888)
-        pixmap = QPixmap.fromImage(qt_image)
-        
-        # Scale pixmap to fit label while preserving aspect ratio
-        label_w = self.camera_label.width()
-        label_h = self.camera_label.height()
-        
-        if label_w > 0 and label_h > 0:
-            scaled_pixmap = pixmap.scaled(
-                label_w, 
-                label_h, 
-                Qt.KeepAspectRatio, 
-                Qt.SmoothTransformation
-            )
-            self.camera_label.setPixmap(scaled_pixmap)
-        else:
-            # Fallback if label not yet sized
-            self.camera_label.setPixmap(pixmap)
+            h, w, ch = frame_to_show.shape
+            bytes_per_line = 3 * w
             
-        if not self.camera_label.isVisible():
-            self.camera_label.setVisible(True)
+            # Ensure data is contiguous
+            if not frame_to_show.flags['C_CONTIGUOUS']:
+                frame_to_show = np.ascontiguousarray(frame_to_show)
+                
+            qt_image = QImage(frame_to_show.data, w, h, bytes_per_line, QImage.Format_RGB888)
+            
+            # Create pixmap and scale
+            pixmap = QPixmap.fromImage(qt_image)
+            
+            label_w = self.camera_label.width()
+            label_h = self.camera_label.height()
+            
+            if label_w > 50 and label_h > 50:
+                scaled_pixmap = pixmap.scaled(
+                    label_w, 
+                    label_h, 
+                    Qt.KeepAspectRatio, 
+                    Qt.SmoothTransformation
+                )
+                self.camera_label.setPixmap(scaled_pixmap)
+            else:
+                self.camera_label.setPixmap(pixmap)
+                
+            if not self.camera_label.isVisible():
+                self.camera_label.setVisible(True)
+                
+        except Exception as e:
+            print(f"Registration feed display error: {e}")
     
     def show_feedback(self, message, is_success):
         """Show feedback message with auto-fade"""
