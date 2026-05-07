@@ -827,7 +827,7 @@ class AttendanceKioskGUI(QMainWindow):
         self.setCentralWidget(central_widget)
         self.main_layout = QVBoxLayout(central_widget)
         self.main_layout.setContentsMargins(10, 10, 10, 10)
-        self.main_layout.setSpacing(5)
+        self.main_layout.setSpacing(0)
         
         self.admin_icon_btn = QPushButton("⚙️ ADMIN")
         self.admin_icon_btn.setObjectName("adminIcon")
@@ -836,7 +836,7 @@ class AttendanceKioskGUI(QMainWindow):
         self.admin_icon_btn.setMinimumHeight(40)
         self.admin_icon_btn.setMaximumWidth(100)
 
-        self.title_label = QLabel("Employee Attendance Management System")
+        self.title_label = QLabel("ERP")
         self.title_label.setObjectName("title")
         self.title_label.setAlignment(Qt.AlignCenter)
         self.title_label.setWordWrap(True)
@@ -1302,6 +1302,9 @@ class AttendanceKioskGUI(QMainWindow):
             # Update label height if it changed significantly
             if not hasattr(self, '_last_target_h') or abs(self._last_target_h - target_height) > 5:
                 self.camera_label.setFixedHeight(target_height)
+                # Sync container heights to match camera exactly
+                self.display_stack.setFixedHeight(target_height)
+                self.pages_stack.setFixedHeight(target_height)
                 self._last_target_h = target_height
 
             scaled_pixmap = QPixmap.fromImage(q_image).scaled(
