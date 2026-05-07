@@ -792,10 +792,10 @@ class AttendanceKioskGUI(QMainWindow):
         self.temporal_buffer.set_identity_lock_time(config.IDENTITY_LOCK_TIME)
         print(f"✓ Temporal Buffer: {config.TEMPORAL_BUFFER_SIZE} frames, {config.TEMPORAL_AGREEMENT_THRESHOLD*100:.0f}% agreement")
 
-        self.init_ui()
-
         # ★★★ CREATE NOTIFICATION OVERLAY ★★★
         self.notification_overlay = NotificationOverlay(self)
+
+        self.init_ui()
 
         # Start camera
         QTimer.singleShot(200, self.init_camera)
