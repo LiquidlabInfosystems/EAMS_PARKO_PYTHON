@@ -885,9 +885,10 @@ class AttendanceKioskGUI(QMainWindow):
         # Add display stack to camera page
         camera_page_layout.addWidget(self.display_stack)
         
-        # Add admin button in bottom right corner
-        admin_button_container = QFrame()
-        admin_button_layout = QHBoxLayout(admin_button_container)
+        # Create admin button container (will be added to main_layout later)
+        self.admin_button_container = QFrame()
+        self.admin_button_container.setStyleSheet("background: transparent; border: none;")
+        admin_button_layout = QHBoxLayout(self.admin_button_container)
         admin_button_layout.setContentsMargins(0, 0, 10, 10)
         admin_button_layout.addStretch()
         
@@ -899,9 +900,6 @@ class AttendanceKioskGUI(QMainWindow):
         self.admin_icon_btn.setMaximumWidth(100)
         self.admin_icon_btn.setVisible(False) # Hidden by default
         admin_button_layout.addWidget(self.admin_icon_btn)
-        
-        admin_button_container.setStyleSheet("background: transparent; border: none;")
-        camera_page_layout.addWidget(admin_button_container)
         
         # Create pages stack for camera and admin pages
         self.pages_stack = QStackedWidget()
@@ -922,9 +920,8 @@ class AttendanceKioskGUI(QMainWindow):
         self.pages_stack.addWidget(self.registration_page)
         
         # Start with camera page
-        self.pages_stack.setCurrentIndex(0)
-        
         self.main_layout.addWidget(self.pages_stack)
+
 
 
         # Action buttons container - switched to QGridLayout for 2-column layout
@@ -973,6 +970,10 @@ class AttendanceKioskGUI(QMainWindow):
         ]
 
         self.main_layout.addWidget(self.button_frame)
+        
+        # Add admin button at the very bottom (below action buttons)
+        self.main_layout.addWidget(self.admin_button_container)
+        
         self.main_layout.addStretch(1)
 
 
@@ -1299,6 +1300,12 @@ class AttendanceKioskGUI(QMainWindow):
             )
 
             self.camera_label.setPixmap(scaled_pixmap)
+            
+            # Update container heights to match camera exactly but allow growth
+            self.display_stack.setMinimumHeight(target_height)
+            self.display_stack.setMaximumHeight(target_height)
+            self.pages_stack.setMinimumHeight(target_height)
+            
         except Exception as e:
             print(f"Display error: {e}")
 
@@ -2039,13 +2046,14 @@ class AttendanceKioskGUI(QMainWindow):
         
         # ★★★ SYNC STATUS FROM SERVER FIRST ★★★
         if not self._sync_status_for_person(person_name, show_loading=True):
-            # User is blocked - buttons hidden, grid needs refresh
+            # User is blocked - buttons hidden
             for btn in self.all_action_buttons:
                 btn.setVisible(False)
+            self.button_frame.setVisible(False)
             self._rearrange_button_grid()
             return
         
-        # Use local state (now synced with server) for button visibility
+        # Use local state for button visibility
         can_time_in, _ = self.state_manager.can_time_in(person_name)
         can_time_out, _ = self.state_manager.can_time_out(person_name)
         can_break_start, _ = self.state_manager.can_break_start(person_name)
@@ -2070,6 +2078,7 @@ class AttendanceKioskGUI(QMainWindow):
             self.job_out_btn.setVisible(False)
         
         self._rearrange_button_grid()
+        self.button_frame.setVisible(any(btn.isVisible() for btn in self.all_action_buttons))
 
     def _rearrange_button_grid(self):
         """Dynamically arrange visible buttons in a grid: max 2 per row."""
