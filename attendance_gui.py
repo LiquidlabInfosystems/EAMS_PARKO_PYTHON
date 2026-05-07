@@ -700,6 +700,7 @@ class AttendanceKioskGUI(QMainWindow):
 
         # Welcome screen state
         self.no_face_timeout = None
+        self.button_visible_timer = None
 
         # ★★★ FACE CONFIRMATION & FREEZE STATE ★★★
         self.face_confirmed = False              # Is face confirmed and frozen?
@@ -1375,6 +1376,9 @@ class AttendanceKioskGUI(QMainWindow):
                             return
                 
                 # Ensure action buttons stay visible while confirmed
+                if self.button_visible_timer:
+                    self.button_visible_timer.stop()
+                    self.button_visible_timer = None
                 if not self.button_frame.isVisible():
                     self.button_frame.setVisible(True)
 
@@ -1395,12 +1399,18 @@ class AttendanceKioskGUI(QMainWindow):
                 self.admin_icon_btn.setVisible(has_face)
 
                 if has_face:
-                    # Face detected - show camera view but NOT buttons yet (wait for confirmation)
+                    # Face detected - show camera view and buttons for 3 seconds
                     if self.display_stack.currentIndex() == 0:
                         print("👤 Face detected - showing camera view (awaiting confirmation)")
                         self.display_stack.setCurrentIndex(1)
-                        # ★★★ BUTTONS STAY HIDDEN until face is confirmed ★★★
-                        self.button_frame.setVisible(False)
+                        # ★★★ SHOW BUTTONS FOR 3 SECONDS after detection ★★★
+                        self.button_frame.setVisible(True)
+                        if self.button_visible_timer:
+                            self.button_visible_timer.stop()
+                        self.button_visible_timer = QTimer()
+                        self.button_visible_timer.setSingleShot(True)
+                        self.button_visible_timer.timeout.connect(lambda: self.button_frame.setVisible(False))
+                        self.button_visible_timer.start(3000)
                         # Pause animation to save CPU for camera
                         if hasattr(self, 'welcome_widget'):
                             self.welcome_widget.stop_animation()
@@ -1412,7 +1422,11 @@ class AttendanceKioskGUI(QMainWindow):
                         self.no_face_timeout = None
 
                 else:
-                    # No face - start timeout for welcome screen
+                    # No face - hide buttons and start timeout for welcome screen
+                    if self.button_visible_timer:
+                        self.button_visible_timer.stop()
+                        self.button_visible_timer = None
+                    self.button_frame.setVisible(False)
                     if self.display_stack.currentIndex() == 1:
                         if self.no_face_timeout is None:
                             self.no_face_timeout = QTimer()
