@@ -32,7 +32,7 @@ ENABLE_LIVENESS = False  # Blink detection
 # Rotation is applied at libcamera ISP level (not per-frame in Python),
 # so changing CAMERA_ROTATION has zero CPU cost at runtime.
 CAMERA_RESOLUTION = (960, 1080)
-CAMERA_FPS = 15           # Pi 4 safe value (Pi 5 could run 30-60)
+CAMERA_FPS = 60           # Pi 4 safe value (Pi 5 could run 30-60)
 CAMERA_ROTATION = 90      # Applied once at camera init via libcamera.Transform
 
 # ★★★ INSIGHTFACE MODEL SETTINGS ★★★
@@ -53,7 +53,7 @@ MARGIN_THRESHOLD = 0.05                 # Minimum margin between top 2 matches (
 # ★★★ TEMPORAL RECOGNITION SETTINGS ★★★
 TEMPORAL_BUFFER_SIZE = 5  # Number of frames to consider for voting
 TEMPORAL_AGREEMENT_THRESHOLD = 0.6  # 60% agreement required for consensus
-IDENTITY_LOCK_TIME = 2.0  # Seconds to lock identity after recognition (anti-flicker)
+IDENTITY_LOCK_TIME = 1.0  # Seconds to lock identity after recognition (anti-flicker)
 
 
 # MQTT Settings

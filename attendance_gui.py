@@ -38,6 +38,7 @@ from modules.unknown_person_tracker import UnknownPersonTracker
 from modules.welcome_screen import WelcomeScreen
 from modules.mqtt_face_registration import MQTTFaceRegistrationHandler
 from modules.temporal_buffer import TemporalRecognitionBuffer
+from modules.admin_control import AdminControlPage
 
 import subprocess
 
@@ -899,7 +900,47 @@ class AttendanceKioskGUI(QMainWindow):
         # Start with welcome screen
         self.display_stack.setCurrentIndex(0)
 
-        self.main_layout.addWidget(self.display_stack, stretch=1)
+        # Create camera page widget with admin button
+        self.camera_page_widget = QWidget()
+        camera_page_layout = QVBoxLayout(self.camera_page_widget)
+        camera_page_layout.setContentsMargins(0, 0, 0, 0)
+        camera_page_layout.setSpacing(0)
+        
+        # Add display stack to camera page
+        camera_page_layout.addWidget(self.display_stack, stretch=1)
+        
+        # Add admin button in bottom right corner
+        admin_button_container = QFrame()
+        admin_button_layout = QHBoxLayout(admin_button_container)
+        admin_button_layout.setContentsMargins(0, 0, 10, 10)
+        admin_button_layout.addStretch()
+        
+        self.admin_icon_btn = QPushButton("⚙️ ADMIN")
+        self.admin_icon_btn.setObjectName("adminIcon")
+        self.admin_icon_btn.clicked.connect(self.show_admin_page)
+        self.admin_icon_btn.setCursor(Qt.PointingHandCursor)
+        self.admin_icon_btn.setMinimumHeight(40)
+        self.admin_icon_btn.setMaximumWidth(100)
+        admin_button_layout.addWidget(self.admin_icon_btn)
+        
+        admin_button_container.setStyleSheet("background: transparent; border: none;")
+        camera_page_layout.addWidget(admin_button_container)
+        
+        # Create pages stack for camera and admin pages
+        self.pages_stack = QStackedWidget()
+        
+        # Page 0: Camera page
+        self.pages_stack.addWidget(self.camera_page_widget)
+        
+        # Page 1: Admin control page
+        self.admin_page = AdminControlPage(self.face_recognizer)
+        self.admin_page.home_requested.connect(self.show_camera_page)
+        self.pages_stack.addWidget(self.admin_page)
+        
+        # Start with camera page
+        self.pages_stack.setCurrentIndex(0)
+        
+        self.main_layout.addWidget(self.pages_stack, stretch=1)
 
         self.progress_bar = QProgressBar()
         self.progress_bar.setMinimum(0)
@@ -1039,6 +1080,8 @@ class AttendanceKioskGUI(QMainWindow):
             QPushButton#addFace {{ border-color: #50c878; }}
             QPushButton#capture {{ background-color: #4a90e2; border-color: #6ab0ff; font-size: {_pf(18)}px; }}
             QPushButton#cancelReg {{ background-color: #cc3333; border-color: #ff4444; font-size: {_pf(18)}px; }}
+            QPushButton#adminIcon {{ background-color: #ff8c00; border-color: #ffaa00; font-size: {_pf(12)}px; }}
+            QPushButton#adminIcon:hover {{ background-color: #ffaa00; }}
             QFrame#buttonContainer {{ background-color: #0d0d0d; border-top: 3px solid #00ff88; padding: {_ph(10)}px; }}
             QProgressBar {{
                 border: 2px solid #4a90e2; border-radius: {_pw(5)}px; text-align: center;
@@ -1057,6 +1100,13 @@ class AttendanceKioskGUI(QMainWindow):
         elif self.feedback_label.text().startswith("❌"):
             self.feedback_label.setStyleSheet(f"color: #ff4444; font-size: {_pf(15)}px; font-weight: bold; padding: {_ph(5)}px; background: transparent; border: none;")
 
+    def show_admin_page(self):
+        """Show the admin control page"""
+        self.pages_stack.setCurrentIndex(1)
+
+    def show_camera_page(self):
+        """Show the camera page"""
+        self.pages_stack.setCurrentIndex(0)
 
     def init_camera(self):
         """Initialize camera"""

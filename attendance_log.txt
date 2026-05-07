@@ -3081,3 +3081,79 @@
 2026-03-04 18:29:47 | aromal | BREAK END
 2026-03-04 18:31:40 | Shylesh | BREAK START
 2026-03-04 18:31:46 | Shylesh | BREAK END
+2026-05-06 15:42:24 | AromalE | JOB START
+2026-05-06 15:42:57 | AromalE | JOB END
+2026-05-06 16:43:04 | AromalE | JOB START
+2026-05-06 16:43:28 | AromalE | JOB END
+2026-05-06 17:54:04 | amal | JOB START
+2026-05-06 17:54:36 | amal | JOB END
+2026-05-06 17:55:07 | amal | JOB START
+2026-05-06 17:55:16 | amal | JOB END
+2026-05-06 17:55:42 | Aromal | JOB START
+2026-05-06 17:56:00 | Aromal | JOB END
+[0;93m2026-05-06 19:20:20.951917898 [W:onnxruntime:Default, device_discovery.cc:283 GetGpuDevices] Failed to detect devices under "/sys/class/drm/card1": device_discovery.cc:93 ReadFileContents Failed to open file: "/sys/class/drm/card1/device/vendor"[m
+[0;93m2026-05-06 19:20:20.952205671 [W:onnxruntime:Default, device_discovery.cc:283 GetGpuDevices] Failed to detect devices under "/sys/class/drm/card0": device_discovery.cc:93 ReadFileContents Failed to open file: "/sys/class/drm/card0/device/vendor"[m
+[0:46:59.992825298] [3502] [1;32m INFO [1;37mCamera [1;34mcamera_manager.cpp:330 [0mlibcamera v0.5.2+99-bfd68f78
+[0:47:00.027176178] [3503] [1;32m INFO [1;37mIPAProxy [1;34mipa_proxy.cpp:180 [0mUsing tuning file /usr/share/libcamera/ipa/rpi/vc4/ov5647.json
+[0:47:00.035701321] [3503] [1;32m INFO [1;37mCamera [1;34mcamera_manager.cpp:220 [0mAdding camera '/base/soc/i2c0mux/i2c@1/ov5647@36' for pipeline handler rpi/vc4
+[0:47:00.044241481] [3503] [1;32m INFO [1;37mRPI [1;34mvc4.cpp:440 [0mRegistered camera /base/soc/i2c0mux/i2c@1/ov5647@36 to Unicam device /dev/media1 and ISP device /dev/media2
+[0:47:00.044440793] [3503] [1;32m INFO [1;37mRPI [1;34mpipeline_base.cpp:1107 [0mUsing configuration file '/usr/share/libcamera/pipeline/rpi/vc4/rpi_apps.yaml'
+[0:47:00.055166289] [3502] [1;32m INFO [1;37mCamera [1;34mcamera.cpp:1215 [0mconfiguring streams: (0) 960x1080-RGB888/sRGB (1) 1296x972-SBGGR10_CSI2P/RAW
+[0:47:00.055815168] [3503] [1;32m INFO [1;37mRPI [1;34mvc4.cpp:615 [0mSensor: /base/soc/i2c0mux/i2c@1/ov5647@36 - Selected sensor format: 1296x972-SBGGR10_1X10/RAW - Selected unicam format: 1296x972-pBAA/RAW
+✓ Loaded 21 person states
+✓ State Manager initialized
+✓ Loaded 67 unknown person records
+○ MQTT Reporter disabled (ENABLE_MQTT_FEATURES is False)
+
+============================================================
+INITIALIZING ATTENDANCE SYSTEM
+============================================================
+
+🚀 Initializing Face Recognition System (InsightFace)...
+📦 Loading modules...
+✓ Preprocessor: CLAHE
+[0;93m2026-05-06 19:21:46.088208747 [W:onnxruntime:Default, device_discovery.cc:283 GetGpuDevices] Failed to detect devices under "/sys/class/drm/card1": device_discovery.cc:93 ReadFileContents Failed to open file: "/sys/class/drm/card1/device/vendor"[m
+[0;93m2026-05-06 19:21:46.088370985 [W:onnxruntime:Default, device_discovery.cc:283 GetGpuDevices] Failed to detect devices under "/sys/class/drm/card0": device_discovery.cc:93 ReadFileContents Failed to open file: "/sys/class/drm/card0/device/vendor"[m
+   Using CPU inference (Raspberry Pi 4)
+🔄 Initializing InsightFace (buffalo_sc)...
+   Providers: ['CPUExecutionProvider']
+   Detection size: (320, 320)
+Applied providers: ['CPUExecutionProvider'], with options: {'CPUExecutionProvider': {}}
+find model: /home/parko-thrissur/.insightface/models/buffalo_sc/det_500m.onnx detection [1, 3, '?', '?'] 127.5 128.0
+Applied providers: ['CPUExecutionProvider'], with options: {'CPUExecutionProvider': {}}
+find model: /home/parko-thrissur/.insightface/models/buffalo_sc/w600k_mbf.onnx recognition ['None', 3, 112, 112] 127.5 127.5
+set det-size: (320, 320)
+✅ InsightFace Model Loaded (buffalo_sc)
+✓ Face Detector + Encoder: InsightFace (buffalo_sc) - 512-D embeddings
+✓ Quality Checker: Normal
+○ Liveness Detector: Disabled
+✓ Face Matcher: Cosine similarity (threshold=0.35)
+✓ Database: 1 persons loaded
+✓ API sender thread started
+✓ API retry thread started✓ API Client initialized
+
+  └─ Server: 3.109.106.154:3008
+  └─ Endpoint: /api/attendance/record
+  └─ Health: /api/health
+  └─ Full URL: http://3.109.106.154:3008/api/attendance/record
+✓ API Client enabled: 3.109.106.154:3008
+
+🔍 Validating database quality...
+
+🔍 Validating all stored embeddings...
+
+✓ All embeddings valid
+
+🔄 Syncing attendance status from server...
+✓ Startup sync complete: 0 synced, 1 failed, 0 skipped (no employee ID)
+============================================================
+
+✓ Temporal Buffer: 5 frames, 60% agreement
+[0:48:25.014265514] [4310] [1;32m INFO [1;37mCamera [1;34mcamera_manager.cpp:330 [0mlibcamera v0.5.2+99-bfd68f78
+[0:48:25.038115084] [4311] [1;32m INFO [1;37mIPAProxy [1;34mipa_proxy.cpp:180 [0mUsing tuning file /usr/share/libcamera/ipa/rpi/vc4/ov5647.json
+[0:48:25.050033341] [4311] [1;32m INFO [1;37mCamera [1;34mcamera_manager.cpp:220 [0mAdding camera '/base/soc/i2c0mux/i2c@1/ov5647@36' for pipeline handler rpi/vc4
+[0:48:25.050123544] [4311] [1;32m INFO [1;37mRPI [1;34mvc4.cpp:440 [0mRegistered camera /base/soc/i2c0mux/i2c@1/ov5647@36 to Unicam device /dev/media1 and ISP device /dev/media2
+[0:48:25.051205304] [4311] [1;32m INFO [1;37mRPI [1;34mpipeline_base.cpp:1107 [0mUsing configuration file '/usr/share/libcamera/pipeline/rpi/vc4/rpi_apps.yaml'
+[0:48:25.065120271] [4310] [1;32m INFO [1;37mCamera [1;34mcamera.cpp:1215 [0mconfiguring streams: (0) 960x1080-RGB888/sRGB (1) 1296x972-SBGGR10_CSI2P/RAW
+[0:48:25.065605689] [4311] [1;32m INFO [1;37mRPI [1;34mvc4.cpp:615 [0mSensor: /base/soc/i2c0mux/i2c@1/ov5647@36 - Selected sensor format: 1296x972-SBGGR10_1X10/RAW - Selected unicam format: 1296x972-pBAA/RAW
+🔄 Triggered screen rotation script
