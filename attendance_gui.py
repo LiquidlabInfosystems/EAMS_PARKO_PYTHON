@@ -885,9 +885,10 @@ class AttendanceKioskGUI(QMainWindow):
         # Add display stack to camera page
         camera_page_layout.addWidget(self.display_stack)
         
-        # Add admin button in bottom right corner
-        admin_button_container = QFrame()
-        admin_button_layout = QHBoxLayout(admin_button_container)
+        # Create admin button container (will be added to main_layout later)
+        self.admin_button_container = QFrame()
+        self.admin_button_container.setStyleSheet("background: transparent; border: none;")
+        admin_button_layout = QHBoxLayout(self.admin_button_container)
         admin_button_layout.setContentsMargins(0, 0, 10, 10)
         admin_button_layout.addStretch()
         
@@ -899,9 +900,6 @@ class AttendanceKioskGUI(QMainWindow):
         self.admin_icon_btn.setMaximumWidth(100)
         self.admin_icon_btn.setVisible(False) # Hidden by default
         admin_button_layout.addWidget(self.admin_icon_btn)
-        
-        admin_button_container.setStyleSheet("background: transparent; border: none;")
-        camera_page_layout.addWidget(admin_button_container)
         
         # Create pages stack for camera and admin pages
         self.pages_stack = QStackedWidget()
@@ -980,6 +978,10 @@ class AttendanceKioskGUI(QMainWindow):
         ]
 
         self.main_layout.addWidget(self.button_frame)
+        
+        # Add admin button at the very bottom
+        self.main_layout.addWidget(self.admin_button_container)
+        
         self.main_layout.addStretch(1)
 
 
