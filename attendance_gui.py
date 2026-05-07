@@ -1134,8 +1134,9 @@ class AttendanceKioskGUI(QMainWindow):
     def on_frame_ready(self, frame_rgb):
         self.latest_frame = frame_rgb.copy()
         
-        # If in registration mode, update its feed directly for smoothness
+        # If in registration mode, update its feed and capture frame directly
         if self.registration_mode:
+            self.registration_page.set_current_frame(frame_rgb)
             self.registration_page.display_camera_feed(frame_rgb)
 
     def _check_db_update(self):
