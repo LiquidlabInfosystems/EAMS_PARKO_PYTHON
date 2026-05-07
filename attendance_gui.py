@@ -668,7 +668,6 @@ class AttendanceKioskGUI(QMainWindow):
             traceback.print_exc()
             sys.exit(1)
 
-        self.camera_thread = None
         self.current_frame = None
         self.latest_frame = None
 
@@ -829,7 +828,11 @@ class AttendanceKioskGUI(QMainWindow):
         self.camera_label = QLabel()
         self.camera_label.setObjectName("camera")
         self.camera_label.setAlignment(Qt.AlignCenter)
-        self.camera_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+        self.camera_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        # Set height based on INSIGHTFACE_DET_SIZE but allow it to shrink if needed
+        det_height = config.INSIGHTFACE_DET_SIZE[1] if hasattr(config, 'INSIGHTFACE_DET_SIZE') else 320
+        self.camera_label.setMinimumHeight(ph(200))
+        self.camera_label.setMaximumHeight(ph(400)) 
         self.display_stack.addWidget(self.camera_label)
 
         # Start with welcome screen
@@ -842,7 +845,7 @@ class AttendanceKioskGUI(QMainWindow):
         camera_page_layout.setSpacing(0)
         
         # Add display stack to camera page
-        camera_page_layout.addWidget(self.display_stack)
+        camera_page_layout.addWidget(self.display_stack, stretch=1)
         
         # Create pages stack for camera and admin pages
         self.pages_stack = QStackedWidget()
@@ -865,52 +868,53 @@ class AttendanceKioskGUI(QMainWindow):
         # Start with camera page
         self.pages_stack.setCurrentIndex(0)
         
-        self.main_layout.addWidget(self.pages_stack, stretch=1)
+        # Give camera feed most of the space (stretch=3), buttons fixed height at bottom
+        self.main_layout.addWidget(self.pages_stack, stretch=3)
 
 
         # Action buttons container - switched to QGridLayout for 2-column layout
         self.button_frame = QFrame()
         self.button_frame.setObjectName("buttonContainer")
         self.button_layout = QGridLayout(self.button_frame)
-        self.button_layout.setSpacing(ph(10))
+        self.button_layout.setSpacing(ph(6))
         # Reduced side padding for better width usage
-        self.button_layout.setContentsMargins(pw(15), ph(10), pw(15), ph(10))
+        self.button_layout.setContentsMargins(pw(15), ph(5), pw(15), ph(5))
 
-        self.time_in_btn = QPushButton("\U0001F551 TIME IN")
+        self.time_in_btn = QPushButton("🕒 TIME IN")
         self.time_in_btn.setObjectName("timeIn")
         self.time_in_btn.clicked.connect(self.handle_time_in)
         self.time_in_btn.setCursor(Qt.PointingHandCursor)
-        self.time_in_btn.setMinimumHeight(ph(45))
+        self.time_in_btn.setMinimumHeight(ph(40))
 
-        self.time_out_btn = QPushButton("\U0001F551 TIME OUT")
+        self.time_out_btn = QPushButton("🕒 TIME OUT")
         self.time_out_btn.setObjectName("timeOut")
         self.time_out_btn.clicked.connect(self.handle_time_out)
         self.time_out_btn.setCursor(Qt.PointingHandCursor)
-        self.time_out_btn.setMinimumHeight(ph(45))
+        self.time_out_btn.setMinimumHeight(ph(40))
 
-        self.break_in_btn = QPushButton("\U00002615 BREAK START")
+        self.break_in_btn = QPushButton("☕ BREAK START")
         self.break_in_btn.setObjectName("breakIn")
         self.break_in_btn.clicked.connect(self.handle_break_in)
         self.break_in_btn.setCursor(Qt.PointingHandCursor)
-        self.break_in_btn.setMinimumHeight(ph(45))
+        self.break_in_btn.setMinimumHeight(ph(40))
 
-        self.break_out_btn = QPushButton("\U00002615 BREAK END")
+        self.break_out_btn = QPushButton("☕ BREAK END")
         self.break_out_btn.setObjectName("breakOut")
         self.break_out_btn.clicked.connect(self.handle_break_out)
         self.break_out_btn.setCursor(Qt.PointingHandCursor)
-        self.break_out_btn.setMinimumHeight(ph(45))
+        self.break_out_btn.setMinimumHeight(ph(40))
 
-        self.job_in_btn = QPushButton("\U0001F4BC JOB START")
+        self.job_in_btn = QPushButton("💼 JOB START")
         self.job_in_btn.setObjectName("jobIn")
         self.job_in_btn.clicked.connect(self.handle_job_in)
         self.job_in_btn.setCursor(Qt.PointingHandCursor)
-        self.job_in_btn.setMinimumHeight(ph(45))
+        self.job_in_btn.setMinimumHeight(ph(40))
 
-        self.job_out_btn = QPushButton("\U0001F4BC JOB END")
+        self.job_out_btn = QPushButton("💼 JOB END")
         self.job_out_btn.setObjectName("jobOut")
         self.job_out_btn.clicked.connect(self.handle_job_out)
         self.job_out_btn.setCursor(Qt.PointingHandCursor)
-        self.job_out_btn.setMinimumHeight(ph(45))
+        self.job_out_btn.setMinimumHeight(ph(40))
 
         # Store all buttons in a list for easy management
         self.all_action_buttons = [
@@ -921,9 +925,10 @@ class AttendanceKioskGUI(QMainWindow):
 
         self.main_layout.addWidget(self.button_frame)
         
-        # Set button frame to use remaining space properly
+        # Set button frame to fixed height to fit in remaining space
         self.button_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.button_frame.setMinimumHeight(ph(100))
+        # ph(100) is about 100px on reference screen - adjust if still too large
+        self.button_frame.setFixedHeight(ph(160)) 
         # Initially hide buttons
         self.button_frame.setVisible(False)
         self.update_styles()
@@ -959,14 +964,14 @@ class AttendanceKioskGUI(QMainWindow):
 
         self.setStyleSheet(f"""
             QMainWindow {{ background-color: #1a1a1a; }}
-            QLabel#title {{ color: #ffffff; font-size: {_pf(16)}px; font-weight: bold; padding: {_ph(5)}px; }}
-            QLabel#status {{ color: #00ff88; font-size: {_pf(13)}px; padding: {_ph(3)}px; }}
-            QLabel#instruction {{ color: #00ff88; font-size: {_pf(15)}px; font-weight: bold; padding: {_ph(5)}px; }}
-            QLabel#feedback {{ color: #ffffff; font-size: {_pf(15)}px; font-weight: bold; padding: {_ph(5)}px; }}
+            QLabel#title {{ color: #ffffff; font-size: {_pf(16)}px; font-weight: bold; padding: {_ph(2)}px; }}
+            QLabel#status {{ color: #00ff88; font-size: {_pf(13)}px; padding: {_ph(2)}px; }}
+            QLabel#instruction {{ color: #00ff88; font-size: {_pf(15)}px; font-weight: bold; padding: {_ph(3)}px; }}
+            QLabel#feedback {{ color: #ffffff; font-size: {_pf(15)}px; font-weight: bold; padding: {_ph(3)}px; }}
             QLabel#camera {{ background-color: #000000; border: 3px solid #00ff88; border-radius: {_pw(10)}px; }}
             QPushButton {{
                 background-color: #2d2d2d; color: #ffffff; border: 2px solid #4d4d4d;
-                border-radius: {_pw(8)}px; font-size: {_pf(14)}px; font-weight: bold; padding: {_ph(8)}px; min-height: {_ph(40)}px;
+                border-radius: {_pw(8)}px; font-size: {_pf(14)}px; font-weight: bold; padding: {_ph(6)}px; min-height: {_ph(35)}px;
             }}
             QPushButton:hover {{ background-color: #3d3d3d; border-color: #00ff88; }}
             QPushButton:pressed {{ background-color: #1d1d1d; }}
@@ -981,7 +986,7 @@ class AttendanceKioskGUI(QMainWindow):
             QPushButton#cancelReg {{ background-color: #cc3333; border-color: #ff4444; font-size: {_pf(18)}px; }}
             QPushButton#adminIcon {{ background-color: #ff8c00; border-color: #ffaa00; font-size: {_pf(12)}px; }}
             QPushButton#adminIcon:hover {{ background-color: #ffaa00; }}
-            QFrame#buttonContainer {{ background-color: #0d0d0d; border-top: 3px solid #00ff88; padding: {_ph(10)}px; }}
+            QFrame#buttonContainer {{ background-color: #0d0d0d; border-top: 3px solid #00ff88; padding: {_ph(5)}px; }}
             QProgressBar {{
                 border: 2px solid #4a90e2; border-radius: {_pw(5)}px; text-align: center;
                 color: #ffffff; font-weight: bold; min-height: {_ph(30)}px; font-size: {_pf(16)}px;
@@ -990,8 +995,8 @@ class AttendanceKioskGUI(QMainWindow):
         """)
 
         # Adjust main layout spacing dynamically
-        self.main_layout.setContentsMargins(_pw(10), _ph(10), _pw(10), _ph(10))
-        self.main_layout.setSpacing(_ph(5))
+        self.main_layout.setContentsMargins(_pw(8), _ph(5), _pw(8), _ph(5))
+        self.main_layout.setSpacing(_ph(2))
         
         # We can also update feedback label manually if it has overrides
         if self.feedback_label.text().startswith("✅"):
@@ -1110,23 +1115,19 @@ class AttendanceKioskGUI(QMainWindow):
         """
         Fetch and sync attendance status from server for a person with up to 3 retries.
         """
-        if not self.api_client:
-            return True  # Offline mode - allow actions
-        
+        current_time = time.time()
         # Get employee ID for this person
         employee_id = self.face_recognizer.get_employee_id(person_name)
+        
+        if (self.last_synced_employee_id == employee_id and 
+            current_time - self.last_status_sync_time < 5):  # Min 5 seconds between syncs
+            print(f"🔵 _sync_status_for_person: using cached result, is_user_blocked={self.is_user_blocked}, returning {not self.is_user_blocked}")
+            return not self.is_user_blocked
         
         if not employee_id or employee_id == "none":
             print(f"⚠️ No employee ID for {person_name} - using local state")
             self.is_user_blocked = False
             return True
-        
-        # Check if we need to sync (avoid redundant API calls)
-        current_time = time.time()
-        if (self.last_synced_employee_id == employee_id and 
-            current_time - self.last_status_sync_time < 5):  # Min 5 seconds between syncs
-            print(f"🔵 _sync_status_for_person: using cached result, is_user_blocked={self.is_user_blocked}, returning {not self.is_user_blocked}")
-            return not self.is_user_blocked
         
         # Show loading indicator if requested
         if show_loading:
@@ -1277,7 +1278,6 @@ class AttendanceKioskGUI(QMainWindow):
         self.confirmed_frame = None
         self.confirmation_start_time = None
         self.last_stable_person = None
-        self.event_in_progress = False
         self.current_recognized_person = None
         self._buttons_shown_for_current_confirmation = None
         
