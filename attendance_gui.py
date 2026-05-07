@@ -1280,14 +1280,18 @@ class AttendanceKioskGUI(QMainWindow):
 
             q_image = QImage(frame_bgr.data, width, height, bytes_per_line, QImage.Format_RGB888)
 
-            # Set fixed height once to match video frame height exactly
-            if not hasattr(self, '_height_set'):
-                self.camera_label.setFixedHeight(height)
-                self._height_set = True
+            # Calculate correct height to maintain aspect ratio without black bars
+            aspect_ratio = height / width
+            target_height = int(self.camera_label.width() * aspect_ratio)
+            
+            # Update label height if it changed significantly
+            if not hasattr(self, '_last_target_h') or abs(self._last_target_h - target_height) > 5:
+                self.camera_label.setFixedHeight(target_height)
+                self._last_target_h = target_height
 
             scaled_pixmap = QPixmap.fromImage(q_image).scaled(
                 self.camera_label.width(),
-                height,
+                target_height,
                 Qt.KeepAspectRatio,
                 Qt.SmoothTransformation
             )
