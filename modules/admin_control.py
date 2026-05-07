@@ -13,6 +13,8 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushB
                                QMessageBox, QDialog, QLineEdit, QComboBox, QScrollArea)
 from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QFont
+import subprocess
+import os
 
 
 class AdminControlPage(QWidget):
@@ -24,6 +26,19 @@ class AdminControlPage(QWidget):
     # Signal to start face registration
     add_new_face_requested = Signal()
     
+    def _trigger_keyboard(self, show=True):
+        """Toggle system virtual keyboard (onboard or matchbox)"""
+        try:
+            if show:
+                # Try common virtual keyboards
+                subprocess.Popen(["onboard"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.Popen(["matchbox-keyboard"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                subprocess.run(["pkill", "onboard"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.run(["pkill", "matchbox-keyboard"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception as e:
+            print(f"Keyboard toggle error: {e}")
+
     def __init__(self, face_recognizer, parent=None):
         super().__init__(parent)
         self.face_recognizer = face_recognizer
@@ -166,9 +181,11 @@ class AdminControlPage(QWidget):
             return
         
         # Dialog to enter new name
+        self._trigger_keyboard(True)
         new_name, ok = QInputDialog.getText(
             self, "Rename Person", f"Enter new name for {person}:"
         )
+        self._trigger_keyboard(False)
         
         if not ok or not new_name or new_name == person:
             return
@@ -239,10 +256,12 @@ class AdminControlPage(QWidget):
         current_id_str = current_id if current_id else ""
         
         # Dialog to enter new employee ID
+        self._trigger_keyboard(True)
         new_id, ok = QInputDialog.getText(
             self, "Update Employee ID",
             f"Enter new employee ID for {person}:\n(Current: {current_id_str})"
         )
+        self._trigger_keyboard(False)
         
         if not ok:
             return
