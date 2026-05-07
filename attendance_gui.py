@@ -769,26 +769,7 @@ class AttendanceKioskGUI(QMainWindow):
         self.blocked_message = ""  # Store the blocking message for display after confirmation
         self.last_synced_employee_id = None  # Cache to avoid redundant syncs
 
-        # Registration state - 10 SAMPLES
-        self.registration_person_name = ""
-        self.registration_person_employee_id = None  # NEW: Store employee ID during registration
-        self.captured_faces = []
-        self.current_registration_step = 0
         self.feedback_timer = None
-
-        # 10 diverse samples
-        self.registration_steps = [
-            {"instruction": "📸 Look Straight - Sample 1", "icon": "1️⃣"},
-            {"instruction": "📸 Look Straight - Sample 2", "icon": "2️⃣"},
-            {"instruction": "⬅️ Turn Head Left", "icon": "⬅️"},
-            {"instruction": "⬅️ Turn Left More", "icon": "⬅️"},
-            {"instruction": "➡️ Turn Head Right", "icon": "➡️"},
-            {"instruction": "➡️ Turn Right More", "icon": "➡️"},
-            {"instruction": "⬆️ Tilt Head Up", "icon": "⬆️"},
-            {"instruction": "⬇️ Tilt Head Down", "icon": "⬇️"},
-            {"instruction": "😊 Smile", "icon": "😊"},
-            {"instruction": "😐 Neutral Expression", "icon": "😐"}
-        ]
 
         # Welcome screen state
         self.no_face_timeout = None
@@ -933,18 +914,17 @@ class AttendanceKioskGUI(QMainWindow):
         self.admin_page.add_new_face_requested.connect(self.start_registration_from_admin)
         self.pages_stack.addWidget(self.admin_page)
         
+        # Page 2: Registration page [NEW COMPONENT]
+        self.registration_page = RegistrationPage(self.face_recognizer, self.notification_overlay)
+        self.registration_page.registration_completed.connect(self.on_registration_finished)
+        self.registration_page.registration_cancelled.connect(self.on_registration_finished)
+        self.pages_stack.addWidget(self.registration_page)
+        
         # Start with camera page
         self.pages_stack.setCurrentIndex(0)
         
         self.main_layout.addWidget(self.pages_stack, stretch=1)
 
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setMinimum(0)
-        self.progress_bar.setMaximum(len(self.registration_steps))
-        self.progress_bar.setValue(0)
-        self.progress_bar.setFormat(f"Accepted: %v of {len(self.registration_steps)}")
-        self.progress_bar.setVisible(False)
-        self.main_layout.addWidget(self.progress_bar)
 
         # Action buttons container - switched to QGridLayout for 2-column layout
         self.button_frame = QFrame()
@@ -993,27 +973,6 @@ class AttendanceKioskGUI(QMainWindow):
 
         self.main_layout.addWidget(self.button_frame)
 
-        # Registration buttons
-        self.reg_button_frame = QFrame()
-        self.reg_button_frame.setObjectName("buttonContainer")
-        reg_button_layout = QHBoxLayout(self.reg_button_frame)
-        reg_button_layout.setSpacing(20)
-        reg_button_layout.setContentsMargins(30, 20, 30, 20)
-
-        self.capture_btn = QPushButton("📸 CAPTURE")
-        self.capture_btn.setObjectName("capture")
-        self.capture_btn.clicked.connect(self.capture_registration_face)
-        self.capture_btn.setCursor(Qt.PointingHandCursor)
-        reg_button_layout.addWidget(self.capture_btn)
-
-        self.cancel_reg_btn = QPushButton("\U0000274C CANCEL")
-        self.cancel_reg_btn.setObjectName("cancelReg")
-        self.cancel_reg_btn.clicked.connect(self.cancel_registration)
-        self.cancel_reg_btn.setCursor(Qt.PointingHandCursor)
-        reg_button_layout.addWidget(self.cancel_reg_btn)
-
-        self.reg_button_frame.setVisible(False)
-        self.main_layout.addWidget(self.reg_button_frame)
 
         # Initially hide buttons
         self.button_frame.setVisible(False)
@@ -1134,8 +1093,20 @@ class AttendanceKioskGUI(QMainWindow):
 
     def start_registration_from_admin(self):
         """Start registration when triggered from admin page"""
-        self.show_camera_page()
         self.start_registration()
+
+    @Slot()
+    def on_registration_finished(self):
+        """Handle registration completion or cancellation"""
+        self.registration_mode = False
+        self.event_in_progress = False
+        self.show_camera_page()
+        # Reset liveness and state
+        if self.face_recognizer.liveness_detector:
+            self.face_recognizer.liveness_detector.reset()
+        self.current_recognized_person = None
+        self.last_recognized_person = None
+        self.status_label.setText("✅ Ready")
 
     def init_camera(self):
         """Initialize camera"""
@@ -1472,23 +1443,11 @@ class AttendanceKioskGUI(QMainWindow):
             # ★★★ END WELCOME SCREEN LOGIC ★★★
 
             if self.registration_mode:
-                if self.current_registration_step >= len(self.registration_steps):
-                    self.display_frame(display_frame)
-                    self.processing = False
-                    return
-
-                faces = self.face_recognizer.detect_faces(frame_rgb)
-
-                if faces:
-                    face = max(faces, key=lambda f: f['bbox'][2] * f['bbox'][3])
-                    x, y, w, h = face['bbox']
-
-                    self.draw_box_rgb(display_frame, x, y, x + w, y + h, GREEN_RGB, 4)
-
-                    icon = self.registration_steps[self.current_registration_step]["icon"]
-                    self.put_text_rgb(display_frame, icon, x + w//2 - 20, y - 20, GREEN_RGB, 2.0, 4)
-
-                self.display_frame(display_frame)
+                # Delegate frame processing and display to registration page
+                self.registration_page.set_current_frame(frame_rgb)
+                self.registration_page.display_camera_feed(frame_rgb)
+                self.processing = False
+                return
 
             else:
                 # Recognition mode with SMART liveness
@@ -1857,142 +1816,10 @@ class AttendanceKioskGUI(QMainWindow):
         # Hide keyboard after inputs are complete
         VKLineEdit._hide_keyboard()
 
-        # ── Step 3: Begin registration ────────────────────────────────────────
-        # Unpause face detection so we can capture
-        self.event_in_progress = False
-
-        # Force camera view during registration
-        self.display_stack.setCurrentIndex(1)
-
+        # ── Step 3: Begin registration via dedicated module ──────────────────
         self.registration_mode = True
-        self.registration_person_name = name.strip()
-        self.registration_person_employee_id = employee_id.strip()
-        self.captured_faces = []
-        self.current_registration_step = 0
-
-        self.title_label.setText(f"👤 Registering: {self.registration_person_name}")
-        self.instruction_label.setText(self.registration_steps[0]["instruction"])
-        self.instruction_label.setVisible(True)
-        self.progress_bar.setValue(0)
-        self.progress_bar.setVisible(True)
-
-        self.button_frame.setVisible(False)
-        self.reg_button_frame.setVisible(True)
-        self.capture_btn.setEnabled(True)
-
-        self.status_label.setText("📸 Position and CAPTURE (10 samples required)")
-
-
-    def capture_registration_face(self):
-        """Capture with quality validation"""
-        if self.current_frame is None:
-            return
-
-        if self.current_registration_step >= len(self.registration_steps):
-            return
-
-        faces = self.face_recognizer.detect_faces(self.current_frame)
-
-        if not faces:
-            self.show_feedback("❌ No face detected!", False)
-            return
-
-        face = max(faces, key=lambda f: f['bbox'][2] * f['bbox'][3])
-        face_img = self.face_recognizer.extract_face_region(self.current_frame, face, align=False)
-
-        if face_img is not None:
-            landmarks = face.get('landmarks')
-
-            is_valid, message, quality = self.face_recognizer.validate_face_sample(
-                face_img, 
-                landmarks, 
-                check_liveness=False
-            )
-
-            if is_valid and quality >= 0.7:
-                self.captured_faces.append(face_img)
-                self.current_registration_step += 1
-                self.progress_bar.setValue(len(self.captured_faces))
-
-                self.show_feedback(f"✅ ACCEPTED! (Quality: {quality:.0%})", True)
-
-                if self.current_registration_step >= len(self.registration_steps):
-                    self.capture_btn.setEnabled(False)
-                    self.complete_registration()
-                else:
-                    self.instruction_label.setText(
-                        self.registration_steps[self.current_registration_step]["instruction"]
-                    )
-            else:
-                self.show_feedback(f"❌ {message} (Quality: {quality:.0%}) - RETAKE!", False)
-        else:
-            self.show_feedback("❌ Failed to extract face", False)
-
-    def complete_registration(self):
-        """Complete registration with auto-fading success"""
-        self.registration_mode = False
-
-        self.status_label.setText("🔍 Final quality check...")
-        QApplication.processEvents()
-
-        final_samples = []
-        for face_img in self.captured_faces:
-            is_valid, msg, quality = self.face_recognizer.validate_face_sample(
-                face_img, 
-                check_liveness=False
-            )
-            if is_valid:
-                final_samples.append(face_img)
-
-        if len(final_samples) >= 8:
-            self.status_label.setText("💾 Saving to database...")
-            QApplication.processEvents()
-
-            success = self.face_recognizer.add_faces(final_samples, self.registration_person_name, self.registration_person_employee_id)
-
-            if success:
-                # ★★★ CHANGED: Use auto-fading overlay instead of QMessageBox ★★★
-                message = f"{self.registration_person_name} registered!\n{len(final_samples)} samples saved"
-                self.notification_overlay.show_notification("Success", message, "success", 3000)
-            else:
-                # ★★★ CHANGED: Use auto-fading overlay ★★★
-                self.notification_overlay.show_notification("Error", "Registration failed!", "error", 3000)
-        else:
-            # ★★★ CHANGED: Use auto-fading overlay ★★★
-            message = f"Only {len(final_samples)}/10 samples passed check.\n\nPlease try again with better lighting."
-            self.notification_overlay.show_notification("Warning", message, "warning", 3000)
-
-        self.exit_registration_mode()
-
-    def cancel_registration(self):
-        """Cancel registration"""
-        reply = QMessageBox.question(self, "Cancel", "Cancel registration?",
-                                    QMessageBox.Yes | QMessageBox.No)
-        if reply == QMessageBox.Yes:
-            self.exit_registration_mode()
-
-    def exit_registration_mode(self):
-        """Exit registration"""
-        self.registration_mode = False
-        self.registration_person_name = ""
-        self.registration_person_employee_id = None  # Reset employee ID
-        self.captured_faces = []
-        self.current_registration_step = 0
-        
-        # Ensure keyboard is hidden
-        VKLineEdit._hide_keyboard()
-
-        self.capture_btn.setEnabled(True)
-
-        self.title_label.setText(f"Employee Attendance Management System")
-        self.instruction_label.setVisible(False)
-        self.progress_bar.setVisible(False)
-        self.feedback_label.setVisible(False)
-
-        self.button_frame.setVisible(True)
-        self.reg_button_frame.setVisible(False)
-
-        self.status_label.setText("✅ Ready")
+        self.registration_page.start_registration(name, employee_id, self.pages_stack)
+        self.status_label.setText(f"📸 Registering: {name}")
 
     def log_action(self, action, person):
         """Log action to file AND send to API"""

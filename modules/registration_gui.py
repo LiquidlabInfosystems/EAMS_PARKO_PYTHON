@@ -10,6 +10,25 @@ from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QImage, QPixmap
 import numpy as np
 import cv2
+from PySide6.QtWidgets import QApplication
+
+# ── Screen-relative scaling helpers ──────────────────────────────────────────
+def _scr():
+    app = QApplication.instance()
+    if app:
+        for w in app.topLevelWidgets():
+            if w.objectName() == "MainWindow" or w.__class__.__name__ == "AttendanceKioskGUI":
+                return w.width(), w.height()
+        s = app.primaryScreen()
+        if s:
+            g = s.availableGeometry()
+            return g.width(), g.height()
+    return 480, 854
+
+def pw(n): w, h = _scr(); return max(1, int(n * w / 480))
+def ph(n): w, h = _scr(); return max(1, int(n * h / 854))
+def pf(n): w, h = _scr(); return max(8, int(n * min(w, h) / 480))
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 class RegistrationPage(QWidget):
@@ -119,6 +138,33 @@ class RegistrationPage(QWidget):
         main_layout.addWidget(self.reg_button_frame)
         
         self.setLayout(main_layout)
+        self.update_styles()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.update_styles()
+
+    def update_styles(self):
+        """Update styles relative to screen size"""
+        self.setStyleSheet(f"""
+            QWidget {{ background-color: #1a1a1a; }}
+            QLabel#title {{ color: #ffffff; font-size: {pf(16)}px; font-weight: bold; padding: {ph(5)}px; }}
+            QLabel#instruction {{ color: #00ff88; font-size: {pf(15)}px; font-weight: bold; padding: {ph(5)}px; }}
+            QLabel#feedback {{ color: #ffffff; font-size: {pf(15)}px; font-weight: bold; padding: {ph(5)}px; }}
+            QLabel#camera {{ background-color: #000000; border: 3px solid #00ff88; border-radius: {pw(10)}px; }}
+            QPushButton {{
+                background-color: #2d2d2d; color: #ffffff; border: 2px solid #4d4d4d;
+                border-radius: {pw(8)}px; font-size: {pf(14)}px; font-weight: bold; padding: {ph(8)}px; min-height: {ph(40)}px;
+            }}
+            QPushButton#capture {{ background-color: #4a90e2; border-color: #6ab0ff; font-size: {pf(18)}px; }}
+            QPushButton#cancelReg {{ background-color: #cc3333; border-color: #ff4444; font-size: {pf(18)}px; }}
+            QFrame#buttonContainer {{ background-color: #0d0d0d; border-top: 3px solid #00ff88; padding: {ph(10)}px; }}
+            QProgressBar {{
+                border: 2px solid #4a90e2; border-radius: {pw(5)}px; text-align: center;
+                color: #ffffff; font-weight: bold; min-height: {ph(30)}px; font-size: {pf(16)}px;
+            }}
+            QProgressBar::chunk {{ background-color: #00ff88; }}
+        """)
     
     def start_registration(self, person_name, employee_id, display_stack):
         """Start a new registration session"""
@@ -245,7 +291,8 @@ class RegistrationPage(QWidget):
             self.notification_overlay.show_notification("Warning", message, "warning", 3000)
         
         self.exit_registration_mode()
-    
+        self.registration_completed.emit()
+
     def cancel_registration(self):
         """Cancel registration"""
         reply = QMessageBox.question(
@@ -253,6 +300,7 @@ class RegistrationPage(QWidget):
             QMessageBox.Yes | QMessageBox.No
         )
         if reply == QMessageBox.Yes:
+            self.registration_cancelled.emit()
             self.exit_registration_mode()
     
     def exit_registration_mode(self):
@@ -271,5 +319,3 @@ class RegistrationPage(QWidget):
         self.feedback_label.setVisible(False)
         self.camera_label.setVisible(False)
         self.reg_button_frame.setVisible(False)
-        
-        self.registration_completed.emit()
