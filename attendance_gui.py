@@ -897,6 +897,7 @@ class AttendanceKioskGUI(QMainWindow):
         self.admin_icon_btn.setCursor(Qt.PointingHandCursor)
         self.admin_icon_btn.setMinimumHeight(40)
         self.admin_icon_btn.setMaximumWidth(100)
+        self.admin_icon_btn.setVisible(False) # Hidden by default
         admin_button_layout.addWidget(self.admin_icon_btn)
         
         admin_button_container.setStyleSheet("background: transparent; border: none;")
@@ -1450,6 +1451,8 @@ class AttendanceKioskGUI(QMainWindow):
                 # Check if any face is present
                 detected, recognized = self.face_recognizer.process_frame(frame_rgb, preprocess=True)
                 has_face = bool(detected or recognized)
+                # ADMIN button visibility: Show only if ANY face is detected (known or unknown)
+                self.admin_icon_btn.setVisible(has_face)
 
                 if has_face:
                     # Face detected - show camera view but NOT buttons yet (wait for confirmation)
