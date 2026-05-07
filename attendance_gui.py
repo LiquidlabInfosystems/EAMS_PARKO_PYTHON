@@ -1117,6 +1117,11 @@ class AttendanceKioskGUI(QMainWindow):
 
     def init_camera(self):
         """Initialize camera"""
+        # Reset height flag to allow re-calculating based on new frame if needed
+        if hasattr(self, '_height_set'):
+            delattr(self, '_height_set')
+            self.camera_label.setMaximumHeight(16777215) # Reset to default
+            
         try:
             self.status_label.setText("📷 Starting camera...")
             QApplication.processEvents()
@@ -1275,14 +1280,14 @@ class AttendanceKioskGUI(QMainWindow):
 
             q_image = QImage(frame_bgr.data, width, height, bytes_per_line, QImage.Format_RGB888)
 
-            # Set fixed height once to match video frame height
-            if not hasattr(self, '_camera_height_set'):
+            # Set fixed height once to match video frame height exactly
+            if not hasattr(self, '_height_set'):
                 self.camera_label.setFixedHeight(height)
-                self._camera_height_set = True
+                self._height_set = True
 
             scaled_pixmap = QPixmap.fromImage(q_image).scaled(
                 self.camera_label.width(),
-                height, # Use frame height as target
+                height,
                 Qt.KeepAspectRatio,
                 Qt.SmoothTransformation
             )

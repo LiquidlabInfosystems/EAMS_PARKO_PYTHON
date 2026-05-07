@@ -229,14 +229,14 @@ class RegistrationPage(QWidget):
             label_h = self.camera_label.height()
             
             if label_w > 50 and label_h > 50:
-                # Set fixed height once to match video frame height if requested
+                # Set fixed height once to match video frame height exactly
                 if not hasattr(self, '_height_set'):
                     self.camera_label.setFixedHeight(h)
                     self._height_set = True
                 
                 scaled_pixmap = pixmap.scaled(
                     label_w, 
-                    h, # Use frame height as target
+                    h, 
                     Qt.KeepAspectRatio, 
                     Qt.SmoothTransformation
                 )
