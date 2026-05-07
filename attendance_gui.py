@@ -705,6 +705,7 @@ class AttendanceKioskGUI(QMainWindow):
         self.face_confirmed = False              # Is face confirmed and frozen?
         self.confirmed_person_name = None        # Name of confirmed person
         self.confirmed_person_similarity = 0.0   # Similarity score of confirmed person
+        self.confirmed_person_bbox = None        # Bbox of confirmed person for live display
         self.confirmed_frame = None              # Frozen frame to display
         self.confirmation_start_time = None      # When stable recognition started
         self.CONFIRMATION_DELAY = 1.0            # Seconds of stable recognition before confirming
@@ -1268,6 +1269,7 @@ class AttendanceKioskGUI(QMainWindow):
         self.face_confirmed = False
         self.confirmed_person_name = None
         self.confirmed_person_similarity = 0.0
+        self.confirmed_person_bbox = None
         self.confirmed_frame = None
         self.confirmation_start_time = None
         self.last_stable_person = None
@@ -1384,8 +1386,19 @@ class AttendanceKioskGUI(QMainWindow):
                 if not self.button_frame.isVisible():
                     self.button_frame.setVisible(True)
 
-                # Display the frozen frame with confirmation overlay
-                self.display_frame(self.confirmed_frame)
+                # Display live camera frame (not frozen) with confirmation overlay drawn on top
+                live_frame = frame_rgb.copy()
+                # Draw face box if we have bbox info
+                if self.confirmed_person_bbox:
+                    x, y, w, h = self.confirmed_person_bbox
+                    self.draw_box_rgb(live_frame, x, y, x + w, y + h, CYAN_RGB, 6)
+                # Draw confirmation banner at top
+                banner_height = 80
+                self.draw_filled_box_rgb(live_frame, 0, 0, live_frame.shape[1], banner_height, (0, 180, 120))
+                # Draw confirmed name
+                name_text = f" {self.confirmed_person_name}"
+                self.put_text_rgb(live_frame, name_text, 30, 50, (255, 255, 255), 2.0, 4)
+                self.display_frame(live_frame)
                 self.processing = False
                 return
             # ★★★ END FROZEN FRAME LOGIC ★★★
@@ -1538,6 +1551,7 @@ class AttendanceKioskGUI(QMainWindow):
                                     self.face_confirmed = True
                                     self.confirmed_person_name = name
                                     self.confirmed_person_similarity = similarity
+                                    self.confirmed_person_bbox = (x, y, w, h)  # Store bbox for live display
                                     
                                     # Create frozen frame with prominent name display
                                     frozen = display_frame.copy()
@@ -1601,6 +1615,7 @@ class AttendanceKioskGUI(QMainWindow):
                             self.confirmation_start_time = current_time
                             self.face_confirmed = False
                             self.confirmed_person_name = None
+                            self.confirmed_person_bbox = None
                             self.confirmed_frame = None
                         # ★★★ END FACE CONFIRMATION LOGIC ★★★
 
@@ -2007,6 +2022,8 @@ class AttendanceKioskGUI(QMainWindow):
         can_break_end, _ = self.state_manager.can_break_end(person_name)
         can_job_start, _ = self.state_manager.can_job_start(person_name)
         can_job_end, _ = self.state_manager.can_job_end(person_name)
+        
+        print(f"🔵 Button visibility check for {person_name}: time_in={can_time_in}, time_out={can_time_out}, break_start={can_break_start}, break_end={can_break_end}, job_start={can_job_start}, job_end={can_job_end}")
 
         # Logic override: If person is currently ON A JOB, only show JOB END button
         if can_job_end:
