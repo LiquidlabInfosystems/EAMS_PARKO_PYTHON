@@ -1120,6 +1120,7 @@ class AttendanceKioskGUI(QMainWindow):
         current_time = time.time()
         if (self.last_synced_employee_id == employee_id and 
             current_time - self.last_status_sync_time < 5):  # Min 5 seconds between syncs
+            print(f"🔵 _sync_status_for_person: using cached result, is_user_blocked={self.is_user_blocked}, returning {not self.is_user_blocked}")
             return not self.is_user_blocked
         
         # Show loading indicator if requested
@@ -1208,6 +1209,7 @@ class AttendanceKioskGUI(QMainWindow):
         """Switch to welcome screen when no face detected for 3 seconds"""
         print("📺 No face detected - showing welcome screen")
         self.display_stack.setCurrentIndex(0)  # Switch to welcome
+        print("🔴 Hiding buttons - no face detected (show_welcome_screen)")
         self.button_frame.setVisible(False)  # Hide buttons
         self.no_face_timeout = None
         # Resume animation
@@ -1286,6 +1288,7 @@ class AttendanceKioskGUI(QMainWindow):
             self.no_face_timeout = None
         
         # Hide buttons on reset (will be shown again after confirmation)
+        print("🔴 Hiding buttons - resetting face confirmation")
         self.button_frame.setVisible(False)
         
         # Show welcome screen after reset
@@ -1403,6 +1406,7 @@ class AttendanceKioskGUI(QMainWindow):
                         print("👤 Face detected - showing camera view (awaiting confirmation)")
                         self.display_stack.setCurrentIndex(1)
                         # ★★★ BUTTONS STAY HIDDEN until face is confirmed ★★★
+                        print("🔴 Hiding buttons - waiting for face confirmation")
                         self.button_frame.setVisible(False)
                         # Pause animation to save CPU for camera
                         if hasattr(self, 'welcome_widget'):
@@ -1572,6 +1576,7 @@ class AttendanceKioskGUI(QMainWindow):
                                             "warning", 5000
                                         )
                                         # Keep buttons hidden
+                                        print("🔴 Hiding buttons - user is blocked")
                                         self.button_frame.setVisible(False)
                                         
                                         # ★★★ AUTO-RESET to welcome screen after notification ★★★
@@ -1579,7 +1584,9 @@ class AttendanceKioskGUI(QMainWindow):
                                         QTimer.singleShot(4000, self._reset_face_confirmation)
                                     else:
                                         # Not blocked - show buttons
+                                        print("🔵 Setting button_frame.setVisible(True) - showing buttons")
                                         self.button_frame.setVisible(True)
+                                        print(f"🔵 button_frame.isVisible() = {self.button_frame.isVisible()}")
                                         self.update_button_visibility(name)
                                     
                                     # Display frozen frame immediately
@@ -1981,8 +1988,11 @@ class AttendanceKioskGUI(QMainWindow):
             return
         
         # ★★★ SYNC STATUS FROM SERVER FIRST ★★★
-        if not self._sync_status_for_person(person_name, show_loading=True):
+        sync_result = self._sync_status_for_person(person_name, show_loading=True)
+        print(f"🔵 _sync_status_for_person returned: {sync_result}")
+        if not sync_result:
             # User is blocked - buttons hidden, grid needs refresh
+            print("🔴 USER BLOCKED - hiding all buttons in update_button_visibility")
             for btn in self.all_action_buttons:
                 btn.setVisible(False)
             self._rearrange_button_grid()
@@ -2025,7 +2035,9 @@ class AttendanceKioskGUI(QMainWindow):
 
         # Determine if scroll area should be visible
         visible_buttons = [btn for btn in self.all_action_buttons if btn.isVisible()]
+        print(f"🔵 _rearrange_button_grid: {len(visible_buttons)} buttons visible, setting button_frame.setVisible({len(visible_buttons) > 0})")
         self.button_frame.setVisible(len(visible_buttons) > 0)
+        print(f"🔵 After setVisible, button_frame.isVisible() = {self.button_frame.isVisible()}")
         
         # 3. Add back to grid
         num_visible = len(visible_buttons)
