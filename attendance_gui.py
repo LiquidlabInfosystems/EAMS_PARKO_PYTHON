@@ -827,7 +827,7 @@ class AttendanceKioskGUI(QMainWindow):
         self.setCentralWidget(central_widget)
         self.main_layout = QVBoxLayout(central_widget)
         self.main_layout.setContentsMargins(10, 10, 10, 10)
-        self.main_layout.setSpacing(0)
+        self.main_layout.setSpacing(5)
         
         self.admin_icon_btn = QPushButton("⚙️ ADMIN")
         self.admin_icon_btn.setObjectName("adminIcon")
@@ -937,7 +937,7 @@ class AttendanceKioskGUI(QMainWindow):
         # Start with camera page
         self.pages_stack.setCurrentIndex(0)
         
-        self.main_layout.addWidget(self.pages_stack)
+        self.main_layout.addWidget(self.pages_stack, stretch=1)
 
 
         # Action buttons container - switched to QGridLayout for 2-column layout
@@ -1295,21 +1295,10 @@ class AttendanceKioskGUI(QMainWindow):
 
             q_image = QImage(frame_bgr.data, width, height, bytes_per_line, QImage.Format_RGB888)
 
-            # Calculate correct height to maintain aspect ratio without black bars
-            aspect_ratio = height / width
-            target_height = int(self.camera_label.width() * aspect_ratio)
-            
-            # Update label height if it changed significantly
-            if not hasattr(self, '_last_target_h') or abs(self._last_target_h - target_height) > 5:
-                self.camera_label.setFixedHeight(target_height)
-                # Sync container heights to match camera exactly
-                self.display_stack.setFixedHeight(target_height)
-                self.pages_stack.setFixedHeight(target_height)
-                self._last_target_h = target_height
-
+            # Use KeepAspectRatio with current label size to allow layout to handle shrinking
             scaled_pixmap = QPixmap.fromImage(q_image).scaled(
                 self.camera_label.width(),
-                target_height,
+                self.camera_label.height(),
                 Qt.KeepAspectRatio,
                 Qt.SmoothTransformation
             )
