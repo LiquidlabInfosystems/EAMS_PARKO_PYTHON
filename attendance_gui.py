@@ -827,12 +827,12 @@ class AttendanceKioskGUI(QMainWindow):
         # Camera label (index 1)
         self.camera_label = QLabel()
         self.camera_label.setObjectName("camera")
-        self.camera_label.setAlignment(Qt.AlignBottom | Qt.AlignHCenter)
-        self.camera_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.camera_label.setAlignment(Qt.AlignCenter)
+        self.camera_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
         # Set height based on INSIGHTFACE_DET_SIZE but allow it to shrink if needed
         det_height = config.INSIGHTFACE_DET_SIZE[1] if hasattr(config, 'INSIGHTFACE_DET_SIZE') else 320
-        self.camera_label.setMinimumHeight(ph(400))
-        self.camera_label.setMaximumHeight(16777215) 
+        self.camera_label.setMinimumHeight(ph(350))
+        self.camera_label.setMaximumHeight(ph(550)) 
         self.display_stack.addWidget(self.camera_label)
 
         # Start with welcome screen
