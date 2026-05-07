@@ -883,7 +883,7 @@ class AttendanceKioskGUI(QMainWindow):
         camera_page_layout.setSpacing(0)
         
         # Add display stack to camera page
-        camera_page_layout.addWidget(self.display_stack, stretch=1)
+        camera_page_layout.addWidget(self.display_stack)
         
         # Add admin button in bottom right corner
         admin_button_container = QFrame()
@@ -923,7 +923,7 @@ class AttendanceKioskGUI(QMainWindow):
         # Start with camera page
         self.pages_stack.setCurrentIndex(0)
         
-        self.main_layout.addWidget(self.pages_stack, stretch=1)
+        self.main_layout.addWidget(self.pages_stack)
 
 
         # Action buttons container - switched to QGridLayout for 2-column layout

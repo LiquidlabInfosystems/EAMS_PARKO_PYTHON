@@ -114,7 +114,7 @@ class RegistrationPage(QWidget):
         self.camera_label.setAlignment(Qt.AlignCenter)
         self.camera_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored) # Prevent zooming feedback loop
         self.camera_label.setVisible(False)
-        main_layout.addWidget(self.camera_label, stretch=1)
+        main_layout.addWidget(self.camera_label)
         
         # Registration buttons
         self.reg_button_frame = QFrame()
