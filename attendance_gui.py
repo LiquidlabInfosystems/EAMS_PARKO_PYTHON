@@ -828,13 +828,44 @@ class AttendanceKioskGUI(QMainWindow):
         self.main_layout = QVBoxLayout(central_widget)
         self.main_layout.setContentsMargins(10, 10, 10, 10)
         self.main_layout.setSpacing(5)
+        
+        self.admin_icon_btn = QPushButton("⚙️ ADMIN")
+        self.admin_icon_btn.setObjectName("adminIcon")
+        self.admin_icon_btn.clicked.connect(self.show_admin_page)
+        self.admin_icon_btn.setCursor(Qt.PointingHandCursor)
+        self.admin_icon_btn.setMinimumHeight(40)
+        self.admin_icon_btn.setMaximumWidth(100)
 
         self.title_label = QLabel("Employee Attendance Management System")
         self.title_label.setObjectName("title")
         self.title_label.setAlignment(Qt.AlignCenter)
         self.title_label.setWordWrap(True)
         self.title_label.setMinimumWidth(10)
-        self.main_layout.addWidget(self.title_label)
+        
+        # Create admin button container (will be added to header later)
+        self.admin_button_container = QFrame()
+        self.admin_button_container.setStyleSheet("background: transparent; border: none;")
+        admin_button_layout = QHBoxLayout(self.admin_button_container)
+        admin_button_layout.setContentsMargins(0, 0, 10, 10)
+        admin_button_layout.addStretch()
+        
+        self.admin_icon_btn.setVisible(False) # Hidden by default
+        admin_button_layout.addWidget(self.admin_icon_btn)
+
+        # Header container for Title and Admin button
+        header_widget = QWidget()
+        header_layout = QHBoxLayout(header_widget)
+        header_layout.setContentsMargins(0, 0, 10, 0)
+        header_layout.setSpacing(0)
+        
+        header_layout.addStretch(1) # Center title
+        header_layout.addWidget(self.title_label)
+        header_layout.addStretch(1) # Push admin button to right
+        
+        # Add admin button container here (instead of at the bottom)
+        header_layout.addWidget(self.admin_button_container)
+        
+        self.main_layout.addWidget(header_widget)
 
         self.status_label = QLabel("Starting...")
         self.status_label.setObjectName("status")
@@ -876,7 +907,7 @@ class AttendanceKioskGUI(QMainWindow):
         # Start with welcome screen
         self.display_stack.setCurrentIndex(0)
 
-        # Create camera page widget with admin button
+        # Create camera page widget
         self.camera_page_widget = QWidget()
         camera_page_layout = QVBoxLayout(self.camera_page_widget)
         camera_page_layout.setContentsMargins(0, 0, 0, 0)
@@ -884,24 +915,6 @@ class AttendanceKioskGUI(QMainWindow):
         
         # Add display stack to camera page
         camera_page_layout.addWidget(self.display_stack)
-        
-        # Add admin button in bottom right corner
-        admin_button_container = QFrame()
-        admin_button_layout = QHBoxLayout(admin_button_container)
-        admin_button_layout.setContentsMargins(0, 0, 10, 10)
-        admin_button_layout.addStretch()
-        
-        self.admin_icon_btn = QPushButton("⚙️ ADMIN")
-        self.admin_icon_btn.setObjectName("adminIcon")
-        self.admin_icon_btn.clicked.connect(self.show_admin_page)
-        self.admin_icon_btn.setCursor(Qt.PointingHandCursor)
-        self.admin_icon_btn.setMinimumHeight(40)
-        self.admin_icon_btn.setMaximumWidth(100)
-        self.admin_icon_btn.setVisible(False) # Hidden by default
-        admin_button_layout.addWidget(self.admin_icon_btn)
-        
-        admin_button_container.setStyleSheet("background: transparent; border: none;")
-        camera_page_layout.addWidget(admin_button_container)
         
         # Create pages stack for camera and admin pages
         self.pages_stack = QStackedWidget()
