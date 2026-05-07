@@ -21,6 +21,9 @@ class AdminControlPage(QWidget):
     # Signal to go back to home page
     home_requested = Signal()
     
+    # Signal to start face registration
+    add_new_face_requested = Signal()
+    
     def __init__(self, face_recognizer, parent=None):
         super().__init__(parent)
         self.face_recognizer = face_recognizer
@@ -74,6 +77,19 @@ class AdminControlPage(QWidget):
         self.delete_person_btn.clicked.connect(self.delete_person)
         self.delete_person_btn.setCursor(Qt.PointingHandCursor)
         buttons_layout.addWidget(self.delete_person_btn)
+        
+        # Add New Face Button
+        self.add_face_btn = QPushButton("🆕 Add New Face")
+        self.add_face_btn.clicked.connect(self.add_new_face)
+        self.add_face_btn.setCursor(Qt.PointingHandCursor)
+        self.add_face_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #50c878; border-color: #66dd99;
+            }
+            QPushButton:hover { background-color: #66dd99; }
+            QPushButton:pressed { background-color: #3a9e5a; }
+        """)
+        buttons_layout.addWidget(self.add_face_btn)
         
         # Update Employee ID Button
         self.update_emp_id_btn = QPushButton("🆔 Update Employee ID")
@@ -236,6 +252,10 @@ class AdminControlPage(QWidget):
             QMessageBox.information(self, "Success", f"Updated employee ID for '{person}'")
         else:
             QMessageBox.critical(self, "Update Failed", f"Could not update employee ID for '{person}'")
+    
+    def add_new_face(self):
+        """Emit signal to start face registration from admin page"""
+        self.add_new_face_requested.emit()
     
     def go_home(self):
         """Emit signal to go back to home page"""

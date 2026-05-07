@@ -29,7 +29,7 @@ import numpy as np
 import time
 from datetime import datetime
 import cv2
-
+import subprocess
 from face_recognizer import FaceRecognizer
 from modules.api_client import AttendanceAPIClient
 from modules.attendance_state_manager import AttendanceStateManager
@@ -39,6 +39,7 @@ from modules.welcome_screen import WelcomeScreen
 from modules.mqtt_face_registration import MQTTFaceRegistrationHandler
 from modules.temporal_buffer import TemporalRecognitionBuffer
 from modules.admin_control import AdminControlPage
+from modules.registration_gui import RegistrationPage
 
 import subprocess
 
@@ -67,7 +68,6 @@ def ph(n): w, h = _scr(); return max(1, int(n * h / 854))
 def pf(n): w, h = _scr(); return max(8, int(n * min(w, h) / 480))
 # ─────────────────────────────────────────────────────────────────────────────
 
-import subprocess
 
 class VKLineEdit(QLineEdit):
     """
@@ -143,8 +143,6 @@ class VKLineEdit(QLineEdit):
         if cls._kb_proc is not None and cls._kb_proc.poll() is None:
             cls._kb_proc.terminate()
             cls._kb_proc = None
-
-
 
 
 
@@ -455,6 +453,7 @@ class CameraThread(QThread):
                 pass
         self.quit()
         self.wait()
+
 class AdminPasswordDialog(QDialog):
     """Admin-password modal. All sizes scale with screen resolution."""
 
@@ -553,10 +552,6 @@ class AdminPasswordDialog(QDialog):
         self.error_label.setText(f"⚠  {message}")
         self.password_input.clear()
         self.password_input.setFocus()
-
-
-
-
 
 
 
@@ -935,6 +930,7 @@ class AttendanceKioskGUI(QMainWindow):
         # Page 1: Admin control page
         self.admin_page = AdminControlPage(self.face_recognizer)
         self.admin_page.home_requested.connect(self.show_camera_page)
+        self.admin_page.add_new_face_requested.connect(self.start_registration_from_admin)
         self.pages_stack.addWidget(self.admin_page)
         
         # Start with camera page
@@ -988,17 +984,11 @@ class AttendanceKioskGUI(QMainWindow):
         self.job_out_btn.clicked.connect(self.handle_job_out)
         self.job_out_btn.setCursor(Qt.PointingHandCursor)
 
-        self.add_face_btn = QPushButton("\U0001F464 ADD NEW FACE")
-        self.add_face_btn.setObjectName("addFace")
-        self.add_face_btn.clicked.connect(self.start_registration)
-        self.add_face_btn.setCursor(Qt.PointingHandCursor)
-
         # Store all buttons in a list for easy management
         self.all_action_buttons = [
             self.time_in_btn, self.time_out_btn,
             self.break_in_btn, self.break_out_btn,
-            self.job_in_btn, self.job_out_btn,
-            self.add_face_btn
+            self.job_in_btn, self.job_out_btn
         ]
 
         self.main_layout.addWidget(self.button_frame)
@@ -1101,12 +1091,51 @@ class AttendanceKioskGUI(QMainWindow):
             self.feedback_label.setStyleSheet(f"color: #ff4444; font-size: {_pf(15)}px; font-weight: bold; padding: {_ph(5)}px; background: transparent; border: none;")
 
     def show_admin_page(self):
-        """Show the admin control page"""
+        """Show the admin control page after password validation"""
+        # Show password dialog
+        dlg = AdminPasswordDialog(self)
+
+        while True:
+            if dlg.exec() != QDialog.Accepted:
+                return  # User cancelled
+
+            password = dlg.get_password().strip()
+            if not password:
+                dlg.show_error("Password cannot be empty")
+                if dlg.exec() == QDialog.Rejected:
+                    return
+                continue
+
+            # Validate via API (or skip validation if API is disabled)
+            if self.api_client:
+                self.status_label.setText("🔑 Validating admin password...")
+                QApplication.processEvents()
+                ok, err_msg = self.api_client.validate_admin_password(password)
+            else:
+                # API disabled — allow locally without validation
+                ok, err_msg = True, ""
+
+            if ok:
+                break  # Password accepted, proceed
+
+            # Show error inline and loop for retry
+            dlg.show_error(err_msg or "Invalid password")
+            self.status_label.setText("❌ Invalid admin password")
+
+        # Hide keyboard after password is accepted
+        VKLineEdit._hide_keyboard()
+        
+        # Password validated, show admin page
         self.pages_stack.setCurrentIndex(1)
 
     def show_camera_page(self):
         """Show the camera page"""
         self.pages_stack.setCurrentIndex(0)
+
+    def start_registration_from_admin(self):
+        """Start registration when triggered from admin page"""
+        self.show_camera_page()
+        self.start_registration()
 
     def init_camera(self):
         """Initialize camera"""
@@ -1793,46 +1822,11 @@ class AttendanceKioskGUI(QMainWindow):
         self.status_label.setText(message)
 
     def start_registration(self):
-        """Start registration — guarded by admin password validation."""
+        """Start registration — password is validated via admin panel."""
         # Pause background face detection processing
         self.event_in_progress = True
 
-        # ── Step 1: Admin password gate ──────────────────────────────────────
-        dlg = AdminPasswordDialog(self)
-
-        while True:
-            if dlg.exec() != QDialog.Accepted:
-                self.event_in_progress = False
-                return  # User cancelled
-
-            password = dlg.get_password().strip()
-            if not password:
-                dlg.show_error("Password cannot be empty")
-                if dlg.exec() == QDialog.Rejected:
-                    self.event_in_progress = False
-                    return
-                continue
-
-            # Validate via API (or skip validation if API is disabled)
-            if self.api_client:
-                self.status_label.setText("🔑 Validating admin password...")
-                QApplication.processEvents()
-                ok, err_msg = self.api_client.validate_admin_password(password)
-            else:
-                # API disabled — allow locally without validation
-                ok, err_msg = True, ""
-
-            if ok:
-                break  # Password accepted, proceed
-
-            # Show error inline and loop for retry
-            dlg.show_error(err_msg or "Invalid password")
-            self.status_label.setText("❌ Invalid admin password")
-
-        # Hide keyboard after admin password is accepted
-        VKLineEdit._hide_keyboard()
-
-        # ── Step 2: Collect name ─────────────────────────────────────────────
+        # ── Step 1: Collect name ─────────────────────────────────────────────
         name_dlg = TextInputDialog(self, title="Enter Person's Name",
                                    placeholder="Full name")
         if name_dlg.exec() != QDialog.Accepted:
@@ -1843,7 +1837,7 @@ class AttendanceKioskGUI(QMainWindow):
             self.event_in_progress = False
             return
 
-        # ── Step 3: Collect employee ID ───────────────────────────────────────
+        # ── Step 2: Collect employee ID ───────────────────────────────────────
         emp_dlg = TextInputDialog(self, title="Enter Employee ID",
                                   placeholder="Employee ID")
         if emp_dlg.exec() != QDialog.Accepted:
@@ -1860,7 +1854,10 @@ class AttendanceKioskGUI(QMainWindow):
             self.event_in_progress = False
             return
 
-        # ── Step 4: Begin registration ────────────────────────────────────────
+        # Hide keyboard after inputs are complete
+        VKLineEdit._hide_keyboard()
+
+        # ── Step 3: Begin registration ────────────────────────────────────────
         # Unpause face detection so we can capture
         self.event_in_progress = False
 
@@ -2164,7 +2161,6 @@ class AttendanceKioskGUI(QMainWindow):
         if not person_name:
             for btn in self.all_action_buttons:
                 btn.setVisible(False)
-            self.add_face_btn.setVisible(True)
             self.is_user_blocked = False
             self._rearrange_button_grid()
             return
@@ -2200,8 +2196,7 @@ class AttendanceKioskGUI(QMainWindow):
             self.break_out_btn.setVisible(can_break_end)
             self.job_in_btn.setVisible(can_job_start)
             self.job_out_btn.setVisible(False)
-            
-        self.add_face_btn.setVisible(True)
+        
         self._rearrange_button_grid()
 
     def _rearrange_button_grid(self):
