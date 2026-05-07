@@ -831,8 +831,8 @@ class AttendanceKioskGUI(QMainWindow):
         self.camera_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         # Set height based on INSIGHTFACE_DET_SIZE but allow it to shrink if needed
         det_height = config.INSIGHTFACE_DET_SIZE[1] if hasattr(config, 'INSIGHTFACE_DET_SIZE') else 320
-        self.camera_label.setMinimumHeight(ph(350))
-        self.camera_label.setMaximumHeight(ph(750)) 
+        self.camera_label.setMinimumHeight(ph(400))
+        self.camera_label.setMaximumHeight(16777215) 
         self.display_stack.addWidget(self.camera_label)
 
         # Start with welcome screen
@@ -923,14 +923,13 @@ class AttendanceKioskGUI(QMainWindow):
             self.job_in_btn, self.job_out_btn
         ]
 
-        self.main_layout.addWidget(self.button_frame)
-        
-        # Set button frame to fixed height to fit in remaining space
-        self.button_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        # ph(100) is about 100px on reference screen - adjust if still too large
-        self.button_frame.setFixedHeight(ph(200)) 
+        self.button_frame.setFixedHeight(ph(180)) 
         # Initially hide buttons
         self.button_frame.setVisible(False)
+        self.main_layout.addWidget(self.button_frame)
+        
+        # Add stretch at the bottom to push everything up
+        self.main_layout.addStretch(1)
         self.update_styles()
 
         self.showFullScreen()
