@@ -922,6 +922,12 @@ class AttendanceKioskGUI(QMainWindow):
         # Start with camera page
         self.main_layout.addWidget(self.pages_stack)
 
+        # Loading indicator for server sync
+        self.loading_label = QLabel("🔄 Connecting to server...")
+        self.loading_label.setObjectName("loadingIndicator")
+        self.loading_label.setAlignment(Qt.AlignCenter)
+        self.loading_label.setVisible(False)
+        self.main_layout.addWidget(self.loading_label)
 
 
         # Action buttons container - switched to QGridLayout for 2-column layout
@@ -1034,6 +1040,10 @@ class AttendanceKioskGUI(QMainWindow):
             QPushButton#cancelReg {{ background-color: #cc3333; border-color: #ff4444; font-size: {_pf(18)}px; }}
             QPushButton#adminIcon {{ background-color: #ff8c00; border-color: #ffaa00; font-size: {_pf(12)}px; }}
             QPushButton#adminIcon:hover {{ background-color: #ffaa00; }}
+            QLabel#loadingIndicator {{ 
+                color: #00ff88; font-size: {_pf(16)}px; font-weight: bold; padding: {_ph(15)}px;
+                background-color: rgba(0, 0, 0, 100); border-radius: {_pw(10)}px; margin: {_ph(10)}px;
+            }}
             QFrame#buttonContainer {{ background-color: #0d0d0d; border-top: 3px solid #00ff88; padding: {_ph(10)}px; }}
             QProgressBar {{
                 border: 2px solid #4a90e2; border-radius: {_pw(5)}px; text-align: center;
@@ -1182,7 +1192,8 @@ class AttendanceKioskGUI(QMainWindow):
         
         # Show loading indicator if requested
         if show_loading:
-            self.status_label.setText("🔄 Connecting to server...")
+            self.loading_label.setVisible(True)
+            self.status_label.setText("🔄 Syncing...")
             QApplication.processEvents()
         
         max_retries = 3
@@ -1209,6 +1220,7 @@ class AttendanceKioskGUI(QMainWindow):
                 if success:
                     print(f"✅ Status synced for {person_name}")
                 
+                self.loading_label.setVisible(False)
                 return success
                 
             except Exception as e:
@@ -1218,6 +1230,7 @@ class AttendanceKioskGUI(QMainWindow):
                     continue
                 else:
                     print(f"❌ All {max_retries} attempts failed.")
+                    self.loading_label.setVisible(False)
                     if show_loading:
                         self.status_label.setText("⚠️ Server is Not Connected")
                         self.notification_overlay.show_notification("Error", "Server is Not Connected", "error", 2000)
