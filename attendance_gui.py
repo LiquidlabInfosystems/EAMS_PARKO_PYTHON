@@ -912,19 +912,10 @@ class AttendanceKioskGUI(QMainWindow):
             self.job_in_btn, self.job_out_btn
         ]
 
-        # Wrap button_frame in a QScrollArea for better accessibility on small screens
-        self.button_scroll = QScrollArea()
-        self.button_scroll.setWidgetResizable(True)
-        self.button_scroll.setFrameShape(QFrame.NoFrame)
-        self.button_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.button_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.button_scroll.setStyleSheet("background: transparent;")
+        self.main_layout.addWidget(self.button_frame)
         
-        self.button_scroll.setWidget(self.button_frame)
-        self.main_layout.addWidget(self.button_scroll)
-        
-        # Hide scroll area initially instead of just frame
-        self.button_scroll.setVisible(False)
+        # Initially hide buttons
+        self.button_frame.setVisible(False)
         self.main_layout.addStretch(1)
 
 
@@ -1580,7 +1571,7 @@ class AttendanceKioskGUI(QMainWindow):
                                         QTimer.singleShot(4000, self._reset_face_confirmation)
                                     else:
                                         # Not blocked - show buttons
-                                        self.button_scroll.setVisible(True)
+                                        self.button_frame.setVisible(True)
                                         self.update_button_visibility(name)
                                     
                                     # Display frozen frame immediately
@@ -1645,7 +1636,7 @@ class AttendanceKioskGUI(QMainWindow):
                                 self.unknown_person_id = None
                                 self.update_button_visibility(None)
                                 # Show button frame so "ADD NEW FACE" is accessible for unknown persons
-                                self.button_scroll.setVisible(True)
+                                self.button_frame.setVisible(True)
 
                                 self.status_label.setText("⚠️ Unknown Person - Monitoring")
                                 print(f"⚠️ Unknown person detected, timer started")
@@ -1703,7 +1694,7 @@ class AttendanceKioskGUI(QMainWindow):
                             # MQTT Features disabled - just show status and "ADD NEW FACE" button
                             self.status_label.setText("⚠️ Unknown Person")
                             self.update_button_visibility(None)
-                            self.button_scroll.setVisible(True)
+                            self.button_frame.setVisible(True)
 
 
 
@@ -2026,7 +2017,7 @@ class AttendanceKioskGUI(QMainWindow):
 
         # Determine if scroll area should be visible
         visible_buttons = [btn for btn in self.all_action_buttons if btn.isVisible()]
-        self.button_scroll.setVisible(len(visible_buttons) > 0)
+        self.button_frame.setVisible(len(visible_buttons) > 0)
         
         # 3. Add back to grid
         num_visible = len(visible_buttons)
