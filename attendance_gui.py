@@ -1285,6 +1285,9 @@ class AttendanceKioskGUI(QMainWindow):
             self.no_face_timeout.stop()
             self.no_face_timeout = None
         
+        # Hide buttons on reset (will be shown again after confirmation)
+        self.button_frame.setVisible(False)
+        
         # Show welcome screen after reset
         self.show_welcome_screen()
 
@@ -1404,6 +1407,7 @@ class AttendanceKioskGUI(QMainWindow):
                         # Pause animation to save CPU for camera
                         if hasattr(self, 'welcome_widget'):
                             self.welcome_widget.stop_animation()
+                    # else: Camera view already showing - do NOT hide buttons here (they may be shown after confirmation)
 
 
                     # Cancel no-face timeout
