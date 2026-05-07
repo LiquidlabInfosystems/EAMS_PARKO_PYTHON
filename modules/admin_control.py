@@ -16,14 +16,6 @@ from PySide6.QtGui import QFont
 from modules.ui_utils import VKLineEdit
 
 
-class AdminControlPage(QWidget):
-    """Admin control page for managing face database"""
-    
-    # Signal to go back to home page
-    home_requested = Signal()
-    
-    # Signal to start face registration
-    add_new_face_requested = Signal()
 
 class KioskInputDialog(QDialog):
     """Custom input dialog that uses VKLineEdit for virtual keyboard support"""
@@ -79,6 +71,14 @@ class KioskInputDialog(QDialog):
         return "", False
 
 class AdminControlPage(QWidget):
+    """Admin control page for managing face database"""
+    
+    # Signal to go back to home page
+    home_requested = Signal()
+    
+    # Signal to start face registration
+    add_new_face_requested = Signal()
+    
     def __init__(self, face_recognizer, parent=None):
         super().__init__(parent)
         self.face_recognizer = face_recognizer
