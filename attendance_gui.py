@@ -870,7 +870,7 @@ class AttendanceKioskGUI(QMainWindow):
         self.pages_stack.setCurrentIndex(0)
         
         # Give camera feed most of the space (stretch=3), buttons fixed height at bottom
-self.main_layout.addWidget(self.pages_stack, stretch=3)
+        self.main_layout.addWidget(self.pages_stack, stretch=3)
 
 
         # Action buttons container - switched to QGridLayout for 2-column layout
