@@ -11,10 +11,9 @@ Provides interface for:
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
                                QFrame, QListWidget, QListWidgetItem, QInputDialog, 
                                QMessageBox, QDialog, QLineEdit, QComboBox, QScrollArea)
-from PySide6.QtCore import Qt, Signal, QSize
+from PySide6.QtCore import Qt, Signal, QSize, QTimer
 from PySide6.QtGui import QFont
-import subprocess
-import os
+from modules.ui_utils import VKLineEdit
 
 
 class AdminControlPage(QWidget):
@@ -25,20 +24,61 @@ class AdminControlPage(QWidget):
     
     # Signal to start face registration
     add_new_face_requested = Signal()
-    
-    def _trigger_keyboard(self, show=True):
-        """Toggle system virtual keyboard (onboard or matchbox)"""
-        try:
-            if show:
-                # Try common virtual keyboards
-                subprocess.Popen(["onboard"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                subprocess.Popen(["matchbox-keyboard"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            else:
-                subprocess.run(["pkill", "onboard"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                subprocess.run(["pkill", "matchbox-keyboard"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except Exception as e:
-            print(f"Keyboard toggle error: {e}")
 
+class KioskInputDialog(QDialog):
+    """Custom input dialog that uses VKLineEdit for virtual keyboard support"""
+    def __init__(self, title, label, initial_text="", parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setMinimumWidth(300)
+        
+        layout = QVBoxLayout(self)
+        
+        self.label = QLabel(label)
+        layout.addWidget(self.label)
+        
+        self.line_edit = VKLineEdit(initial_text)
+        layout.addWidget(self.line_edit)
+        
+        button_layout = QHBoxLayout()
+        self.ok_button = QPushButton("OK")
+        self.ok_button.clicked.connect(self.accept)
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self.reject)
+        
+        button_layout.addWidget(self.ok_button)
+        button_layout.addWidget(self.cancel_button)
+        layout.addLayout(button_layout)
+        
+        # Style the dialog
+        self.setStyleSheet("""
+            QDialog { background-color: #1a1a1a; border: 2px solid #00ff88; border-radius: 10px; }
+            QLabel { color: #ffffff; font-size: 14px; margin-bottom: 5px; }
+            QLineEdit { 
+                background-color: #2d2d2d; color: #ffffff; border: 1px solid #4d4d4d; 
+                border-radius: 5px; padding: 10px; font-size: 16px;
+            }
+            QPushButton {
+                background-color: #2d2d2d; color: #ffffff; border: 1px solid #4d4d4d;
+                border-radius: 5px; padding: 8px; min-width: 80px;
+            }
+            QPushButton:hover { border-color: #00ff88; }
+        """)
+        
+        # Focus the line edit after a short delay to ensure keyboard triggers
+        QTimer.singleShot(100, self.line_edit.setFocus)
+
+    def text_value(self):
+        return self.line_edit.text()
+
+    @staticmethod
+    def get_text(parent, title, label, initial_text=""):
+        dialog = KioskInputDialog(title, label, initial_text, parent)
+        if dialog.exec() == QDialog.Accepted:
+            return dialog.text_value(), True
+        return "", False
+
+class AdminControlPage(QWidget):
     def __init__(self, face_recognizer, parent=None):
         super().__init__(parent)
         self.face_recognizer = face_recognizer
@@ -180,12 +220,10 @@ class AdminControlPage(QWidget):
         if not ok or not person:
             return
         
-        # Dialog to enter new name
-        self._trigger_keyboard(True)
-        new_name, ok = QInputDialog.getText(
-            self, "Rename Person", f"Enter new name for {person}:"
+        # Dialog to enter new name using KioskInputDialog for keyboard support
+        new_name, ok = KioskInputDialog.get_text(
+            self, "Rename Person", f"Enter new name for {person}:", person
         )
-        self._trigger_keyboard(False)
         
         if not ok or not new_name or new_name == person:
             return
@@ -255,13 +293,11 @@ class AdminControlPage(QWidget):
         current_id = self.face_recognizer.get_employee_id(person)
         current_id_str = current_id if current_id else ""
         
-        # Dialog to enter new employee ID
-        self._trigger_keyboard(True)
-        new_id, ok = QInputDialog.getText(
+        # Dialog to enter new employee ID using KioskInputDialog for keyboard support
+        new_id, ok = KioskInputDialog.get_text(
             self, "Update Employee ID",
-            f"Enter new employee ID for {person}:\n(Current: {current_id_str})"
+            f"Enter new employee ID for {person}:", current_id_str
         )
-        self._trigger_keyboard(False)
         
         if not ok:
             return
