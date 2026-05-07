@@ -20,7 +20,7 @@ import sys
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                                QHBoxLayout, QLabel, QPushButton, QFrame, QInputDialog, 
                                QGridLayout, QMessageBox, QDialog, QProgressBar, QStackedWidget,
-                               QSizePolicy, QLineEdit)
+                               QSizePolicy, QLineEdit, QScrollArea)
 from PySide6.QtCore import Qt, QThread, Signal, Slot, QTimer, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QImage, QPixmap, QFont
 from picamera2 import Picamera2

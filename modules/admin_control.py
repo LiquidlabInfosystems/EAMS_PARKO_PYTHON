@@ -152,17 +152,34 @@ class AdminControlPage(QWidget):
         self.update_emp_id_btn.setCursor(Qt.PointingHandCursor)
         buttons_layout.addWidget(self.update_emp_id_btn)
         
+        # Wrap the buttons and list in a scroll area
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.NoFrame)
+        scroll_area.setStyleSheet("background: transparent;")
+        
+        scroll_content = QWidget()
+        scroll_content.setStyleSheet("background: transparent;")
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setContentsMargins(0, 0, 0, 0)
+        scroll_layout.setSpacing(15)
+        
+        # Add everything to scroll layout
         buttons_frame = QFrame()
         buttons_frame.setLayout(buttons_layout)
-        main_layout.addWidget(buttons_frame)
         
         # List display area
         self.list_widget = QListWidget()
         self.list_widget.setVisible(False)
         self.list_widget.setMinimumHeight(200)
-        main_layout.addWidget(self.list_widget)
+
+        scroll_layout.addWidget(buttons_frame)
+        scroll_layout.addWidget(self.list_widget)
         
-        # Home button at bottom
+        scroll_area.setWidget(scroll_content)
+        main_layout.addWidget(scroll_area, stretch=1)
+        
+        # Home button at bottom (outside scroll area)
         home_btn = QPushButton("🏠 Home")
         home_btn.clicked.connect(self.go_home)
         home_btn.setCursor(Qt.PointingHandCursor)
