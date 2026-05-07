@@ -1151,15 +1151,9 @@ class AttendanceKioskGUI(QMainWindow):
         if self.current_recognized_person and self.api_client:
             self._sync_status_for_person(self.current_recognized_person)
 
-    def _sync_status_for_person(self, person_name: str) -> bool:
+    def _sync_status_for_person(self, person_name: str, show_loading: bool = False) -> bool:
         """
-        Fetch and sync attendance status from server for a person
-        
-        Args:
-            person_name: Name of the person to sync
-            
-        Returns:
-            True if sync succeeded and user is NOT blocked
+        Fetch and sync attendance status from server for a person with up to 3 retries.
         """
         if not self.api_client:
             return True  # Offline mode - allow actions
@@ -1178,36 +1172,51 @@ class AttendanceKioskGUI(QMainWindow):
             current_time - self.last_status_sync_time < 5):  # Min 5 seconds between syncs
             return not self.is_user_blocked
         
-        try:
-            # Fetch status from server
-            timestamp = int(datetime.now().timestamp())
-            api_response = self.api_client.get_attendance_status(employee_id, timestamp)
-            
-            # Update tracking
-            self.last_status_sync_time = current_time
-            self.last_synced_employee_id = employee_id
-            
-            # Sync with state manager
-            success, message, is_blocked = self.state_manager.sync_from_server(person_name, api_response)
-            
-            self.is_user_blocked = is_blocked
-            
-            if is_blocked:
-                # Store message for display after confirmation
-                self.blocked_message = message
-                # Don't show notification here - will show after face confirmation
-                print(f"🚫 User blocked (will notify after confirmation): {message}")
-                return False
-            
-            if success:
-                print(f"✅ Status synced for {person_name}")
-            
-            return success
-            
-        except Exception as e:
-            print(f"❌ Status sync error: {e}")
-            self.is_user_blocked = False
-            return True  # Allow on error (fallback to local)
+        # Show loading indicator if requested
+        if show_loading:
+            self.status_label.setText("🔄 Connecting to server...")
+            QApplication.processEvents()
+        
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                # Fetch status from server
+                timestamp = int(datetime.now().timestamp())
+                api_response = self.api_client.get_attendance_status(employee_id, timestamp)
+                
+                # Update tracking
+                self.last_status_sync_time = current_time
+                self.last_synced_employee_id = employee_id
+                
+                # Sync with state manager
+                success, message, is_blocked = self.state_manager.sync_from_server(person_name, api_response)
+                
+                self.is_user_blocked = is_blocked
+                
+                if is_blocked:
+                    self.blocked_message = message
+                    print(f"🚫 User blocked: {message}")
+                    return False
+                
+                if success:
+                    print(f"✅ Status synced for {person_name}")
+                
+                return success
+                
+            except Exception as e:
+                print(f"❌ Attempt {attempt + 1} failed: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(0.5) # Short wait before retry
+                    continue
+                else:
+                    print(f"❌ All {max_retries} attempts failed.")
+                    if show_loading:
+                        self.status_label.setText("⚠️ Server is Not Connected")
+                        self.notification_overlay.show_notification("Error", "Server is Not Connected", "error", 2000)
+                    self.is_user_blocked = False # Fallback to local
+                    return True # Allow on error (fallback)
+        
+        return True
 
     def _sync_all_users_on_startup(self):
         """Sync attendance status for all registered employees on startup"""
@@ -2010,7 +2019,7 @@ class AttendanceKioskGUI(QMainWindow):
             return
         
         # ★★★ SYNC STATUS FROM SERVER FIRST ★★★
-        if not self._sync_status_for_person(person_name):
+        if not self._sync_status_for_person(person_name, show_loading=True):
             # User is blocked - buttons hidden, grid needs refresh
             for btn in self.all_action_buttons:
                 btn.setVisible(False)
