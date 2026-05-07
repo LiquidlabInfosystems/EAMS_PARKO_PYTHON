@@ -5,7 +5,7 @@ Handles face registration with capture, validation, and progress tracking
 """
 
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
-                               QFrame, QProgressBar, QMessageBox)
+                               QFrame, QProgressBar, QMessageBox, QSizePolicy)
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QImage, QPixmap
 import numpy as np
@@ -112,6 +112,7 @@ class RegistrationPage(QWidget):
         self.camera_label = QLabel()
         self.camera_label.setObjectName("camera")
         self.camera_label.setAlignment(Qt.AlignCenter)
+        self.camera_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored) # Prevent zooming feedback loop
         self.camera_label.setVisible(False)
         main_layout.addWidget(self.camera_label, stretch=1)
         
