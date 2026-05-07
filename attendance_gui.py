@@ -1622,7 +1622,9 @@ class AttendanceKioskGUI(QMainWindow):
                                 status_text = f"👤 {name} {verified} • {similarity:.0%} {api_indicator}"
 
                         self.status_label.setText(status_text)
-                        self.update_button_visibility(name)
+                        # Only update button visibility AFTER face is confirmed (not during confirming phase)
+                        if self.face_confirmed:
+                            self.update_button_visibility(name)
 
 
                     elif is_confident and not liveness_ok:
