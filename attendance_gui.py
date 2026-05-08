@@ -1511,7 +1511,8 @@ class AttendanceKioskGUI(QMainWindow):
 
             if self.registration_mode:
                 # Do detection to show boxes during registration
-                detected_faces = self.face_recognizer.detect_faces(frame_rgb)
+                processed_for_det = self.face_recognizer.preprocess_image(frame_rgb)
+                detected_faces = self.face_recognizer.detect_faces(processed_for_det)
                 name = getattr(self.registration_page, 'registration_person_name', 'Person')
                 for face in detected_faces:
                     x, y, w, h = face['bbox']
@@ -1520,7 +1521,7 @@ class AttendanceKioskGUI(QMainWindow):
                     self.draw_filled_box_rgb(display_frame, x, y - 50, x + w, y, YELLOW_RGB)
                     self.put_text_rgb(display_frame, f"Registering {name}", x + 10, y - 20, (0,0,0), 0.8, 2)
                 
-                # Update current frame for capture logic
+                # Update current frame for capture logic (capture on original raw frame)
                 self.registration_page.set_current_frame(frame_rgb)
                 # Display the annotated frame in the registration UI
                 self.registration_page.display_camera_feed(display_frame)
