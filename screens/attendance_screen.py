@@ -127,7 +127,8 @@ class AttendanceScreen(QWidget):
             label_h = self.camera_label.height()
             
             if label_w > 50:
-                scaled_pixmap = pixmap.scaled(label_w, label_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                # FastTransformation is much faster on Pi 4 than SmoothTransformation
+                scaled_pixmap = pixmap.scaled(label_w, label_h, Qt.KeepAspectRatio, Qt.FastTransformation)
                 self.camera_label.setPixmap(scaled_pixmap)
             else:
                 self.camera_label.setPixmap(pixmap)

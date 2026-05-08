@@ -146,8 +146,13 @@ class AttendanceKioskGUI(QMainWindow):
         self.setObjectName("MainWindow")
         self.showFullScreen()
         
-        # Initialize Core Components
-        self.face_recognizer = FaceRecognizer()
+        # Initialize Core Components with optimized Pi 4 settings
+        self.face_recognizer = FaceRecognizer(
+            model_name=config.INSIGHTFACE_MODEL,
+            det_size=config.INSIGHTFACE_DET_SIZE,
+            recognition_threshold=config.RECOGNITION_THRESHOLD,
+            detection_confidence=config.DETECTION_CONFIDENCE
+        )
         self.api_client = AttendanceAPIClient() if config.API_ENABLED else None
         self.state_manager = AttendanceStateManager()
         self.incident_reporter = MQTTIncidentReporter() if getattr(config, 'ENABLE_MQTT_FEATURES', False) else None
@@ -166,12 +171,16 @@ class AttendanceKioskGUI(QMainWindow):
         self.is_user_blocked = False
         self.blocked_message = ""
         
+        self.current_detections = []
+        self._last_synced_person = None
+        
         self.init_ui()
         
-        # Timers
+        # Timers - Decouple UI refresh from AI processing
         self.process_timer = QTimer()
         self.process_timer.timeout.connect(self.process_frame)
-        self.process_timer.start(1000 // config.CAMERA_FPS)
+        # Run recognition at ~5 FPS to keep CPU cool and UI responsive
+        self.process_timer.start(200) 
         
         # Start Camera
         QTimer.singleShot(500, self.init_camera)
@@ -250,12 +259,27 @@ class AttendanceKioskGUI(QMainWindow):
     @Slot(np.ndarray)
     def on_frame_ready(self, frame_rgb):
         self.latest_frame = frame_rgb
+        
+        # Draw overlays if there are any detections
+        display_frame = frame_rgb.copy()
+        for face in self.current_detections:
+            bbox = face.get('bbox', [0,0,0,0])
+            name = face.get('name', 'Unknown')
+            color = (0, 255, 136) if name != 'Unknown' else (255, 50, 50) # Green for known, Red for unknown
+            
+            # Draw rectangle (InsightFace gives [x1, y1, x2, y2])
+            x1, y1, x2, y2 = map(int, bbox)
+            cv2.rectangle(display_frame, (x1, y1), (x2, y2), color, 2)
+            
+            # Draw name tag
+            cv2.putText(display_frame, name, (x1, y1 - 10), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+
         idx = self.screens.currentIndex()
         if idx == 0: # Welcome
-            # Pass frame if welcome screen needs it for something
             pass
         elif idx == 1: # Attendance
-            self.attendance_screen.display_frame(frame_rgb)
+            self.attendance_screen.display_frame(display_frame)
         elif idx == 3: # Registration
             self.registration_screen.set_current_frame(frame_rgb)
             self.registration_screen.display_camera_feed(frame_rgb)
@@ -271,6 +295,7 @@ class AttendanceKioskGUI(QMainWindow):
         try:
             # Face recognition logic
             detected, recognized = self.face_recognizer.process_frame(self.latest_frame)
+            self.current_detections = recognized if recognized else detected
             
             if detected:
                 # Switch to attendance screen as soon as ANY face is detected
@@ -305,6 +330,7 @@ class AttendanceKioskGUI(QMainWindow):
                     self.status_bar.setText("🔍 Face Detected")
             else:
                 # No face detected
+                self.current_detections = []
                 self.temporal_buffer.clear()
                 self.face_confirmed = False
                 self._last_synced_person = None
@@ -378,12 +404,23 @@ class AttendanceKioskGUI(QMainWindow):
             print(f"Sync error: {e}")
 
     def complete_action(self, action_type):
+        self._log_event(self.confirmed_person_name, action_type)
         self.notification_overlay.show_notification("Success", f"{action_type} recorded for {self.confirmed_person_name}", "success")
         self.event_in_progress = False
         self.face_confirmed = False
         self.confirmed_person_name = None
+        self._last_synced_person = None
         self.attendance_screen.set_buttons_visible(False)
         self.screens.setCurrentIndex(0)
+
+    def _log_event(self, name, action):
+        """Log event to local file"""
+        timestamp = datetime.now()
+        try:
+            with open("attendance_log.txt", "a") as f:
+                f.write(f"{timestamp.strftime('%Y-%m-%d %H:%M:%S')} - {name} - {action}\n")
+        except Exception as e:
+            print(f"Logging error: {e}")
 
     def request_admin_access(self):
         dialog = AdminAuthDialog(self)
