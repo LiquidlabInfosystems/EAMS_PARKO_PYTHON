@@ -50,7 +50,6 @@ class RegistrationPage(QWidget):
         self.captured_faces = []
         self.current_registration_step = 0
         self.current_frame = None
-        self._cached_face_bbox = None  # (x, y, w, h) updated by slow timer
         
         # Registration steps - 10 SAMPLES (plain text icons for compatibility)
         self.registration_steps = [
@@ -194,48 +193,20 @@ class RegistrationPage(QWidget):
         
         # Ensure camera label is visible and ready
         self.camera_label.setVisible(True)
-
-        # Start face-detection timer (runs at ~5 FPS, separate from display)
-        self._cached_face_bbox = None
-        if not hasattr(self, '_det_timer'):
-            self._det_timer = QTimer()
-            self._det_timer.timeout.connect(self._update_face_bbox)
-        self._det_timer.start(200)
     
     def set_current_frame(self, frame_rgb):
         """Update current frame for processing"""
         self.current_frame = frame_rgb.copy()
     
-    def _update_face_bbox(self):
-        """Run face detection at low FPS and cache the result."""
-        if self.current_frame is None:
-            self._cached_face_bbox = None
-            return
-        try:
-            faces = self.face_recognizer.detect_faces(self.current_frame)
-            if faces:
-                face = max(faces, key=lambda f: f['bbox'][2] * f['bbox'][3])
-                self._cached_face_bbox = tuple(int(v) for v in face['bbox'])
-            else:
-                self._cached_face_bbox = None
-        except Exception:
-            self._cached_face_bbox = None
-
     def display_camera_feed(self, frame_rgb):
-        """Display current camera frame with cached face tracking rectangle"""
+        """Display current camera frame with proper scaling and format"""
         if frame_rgb is None:
             return
             
         try:
-            display = frame_rgb.copy()
-
-            # Draw cached bounding box (no detection call — zero lag)
-            if self._cached_face_bbox is not None:
-                bx, by, bw, bh = self._cached_face_bbox
-                cv2.rectangle(display, (bx, by), (bx + bw, by + bh), (0, 255, 0), 3)
-
-            # Channel swap (RGB → BGR) to match QImage.Format_RGB888
-            frame_to_show = display[:, :, ::-1].copy()
+            # Replicate main app's display logic: Convert/Copy frame
+            # Channel swap (RGB <-> BGR) to match QImage.Format_RGB888 expectations
+            frame_to_show = frame_rgb[:, :, ::-1].copy()
             
             h, w, ch = frame_to_show.shape
             bytes_per_line = 3 * w
@@ -380,12 +351,7 @@ class RegistrationPage(QWidget):
         self.current_registration_step = 0
         
         self.capture_btn.setEnabled(True)
-
-        # Stop face-detection timer
-        if hasattr(self, '_det_timer'):
-            self._det_timer.stop()
-        self._cached_face_bbox = None
-
+        
         self.title_label.setVisible(False)
         self.instruction_label.setVisible(False)
         self.progress_bar.setVisible(False)
