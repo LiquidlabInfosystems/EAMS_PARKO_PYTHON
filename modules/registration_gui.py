@@ -262,20 +262,9 @@ class RegistrationPage(QWidget):
             if self.registration_mode and self.last_detected_faces:
                 for face in self.last_detected_faces:
                     if 'bbox' in face:
-                        x, y, w, h_box = [int(v) for v in face['bbox']]
-                        # Scale thickness to frame size so it's visible after downscale
-                        thickness = max(2, int(min(h, w) / 150))
-                        # Dark outline for contrast
-                        cv2.rectangle(frame_to_show, (x, y), (x + w, y + h_box), (0, 0, 0), thickness + 2)
-                        # Green rectangle  (#00ff88 → BGR: 136, 255, 0)
-                        cv2.rectangle(frame_to_show, (x, y), (x + w, y + h_box), (136, 255, 0), thickness)
-                        # "Face Detected" label above box
-                        font_scale = max(0.5, min(h, w) / 800)
-                        label_y = max(y - 10, 20)
-                        cv2.putText(frame_to_show, "Face Detected", (x, label_y),
-                                    cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness + 1, cv2.LINE_AA)
-                        cv2.putText(frame_to_show, "Face Detected", (x, label_y),
-                                    cv2.FONT_HERSHEY_SIMPLEX, font_scale, (136, 255, 0), thickness - 1, cv2.LINE_AA)
+                        x, y, w, h = [int(v) for v in face['bbox']]
+                        # Using #00ff88 (RGB: 0, 255, 136) -> BGR: 136, 255, 0
+                        cv2.rectangle(frame_to_show, (x, y), (x + w, y + h), (136, 255, 0), 2)
             
             h, w, ch = frame_to_show.shape
             bytes_per_line = 3 * w

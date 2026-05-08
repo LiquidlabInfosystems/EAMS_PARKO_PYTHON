@@ -5,7 +5,6 @@ Modern UI with touch-friendly buttons.
 Uses VKLineEdit-based dialogs for keyboard support.
 """
 
-from modules import unknown_person_tracker
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
                                QFrame, QMessageBox, QDialog, QLineEdit,
                                QScrollArea, QSizePolicy)
@@ -410,36 +409,10 @@ class AdminControlPage(QWidget):
 
         VKLineEdit._hide_keyboard()
 
-        msg_box = QMessageBox(self)
-        msg_box.setStyleSheet("""
-            QMessageBox {
-                background-color: #2b2b2b;
-            }
-            QLabel {
-                color: white;
-                font-size: 14px;
-            }
-            QPushButton {
-                color: white;
-                background-color: #444;
-                padding: 5px 12px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #555;
-            }
-        """)
-
         if self.face_recognizer.update_employee_id(person, new_id if new_id else None):
-            msg_box.setIcon(QMessageBox.Information)
-            msg_box.setWindowTitle("Success")
-            msg_box.setText(f"Updated ID for '{person}'")
+            QMessageBox.information(self, "Success", f"Updated ID for '{person}'")
         else:
-            msg_box.setIcon(QMessageBox.Critical)
-            msg_box.setWindowTitle("Failed")
-            msg_box.setText(f"Could not update ID for '{person}'")
-
-        msg_box.exec()
+            QMessageBox.critical(self, "Failed", f"Could not update ID for '{person}'")
 
     def add_new_face(self):
         self.add_new_face_requested.emit()
