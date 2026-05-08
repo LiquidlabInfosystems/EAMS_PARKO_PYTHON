@@ -988,6 +988,9 @@ class AttendanceKioskGUI(QMainWindow):
         self.button_scroll.setObjectName("buttonScroll")
         self.button_scroll.setWidgetResizable(True)
         self.button_scroll.setWidget(self.button_frame)
+        self.button_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.button_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.button_scroll.setMinimumHeight(ph(220))
         self.button_scroll.setStyleSheet("QScrollArea { border: none; background: transparent; } QScrollArea > QWidget > QWidget { background: transparent; }")
         
         self.main_layout.addWidget(self.button_scroll)
@@ -1496,8 +1499,16 @@ class AttendanceKioskGUI(QMainWindow):
             # ★★★ END WELCOME SCREEN LOGIC ★★★
 
             if self.registration_mode:
-                # Update current frame for capture logic (display is handled by on_frame_ready)
+                # Do detection to show boxes during registration
+                detected_faces = self.face_recognizer.detect_faces(frame_rgb)
+                for face in detected_faces:
+                    x, y, w, h = face['bbox']
+                    self.draw_box_rgb(display_frame, x, y, x + w, y + h, YELLOW_RGB, 4)
+                
+                # Update current frame for capture logic
                 self.registration_page.set_current_frame(frame_rgb)
+                # Display the annotated frame in the registration UI
+                self.registration_page.display_camera_feed(display_frame)
                 self.processing = False
                 return
 

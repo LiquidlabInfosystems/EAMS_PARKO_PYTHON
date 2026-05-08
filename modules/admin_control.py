@@ -215,8 +215,8 @@ class AdminControlPage(QWidget):
             QLabel#title {{ font-size: 24px; font-weight: bold; color: {THEME['accent_primary']}; padding: 20px; }}
             QPushButton {{
                 background-color: #ffffff; color: {THEME['text_primary']}; border: 2px solid {THEME['background_medium']};
-                border-radius: 8px; font-size: 16px; font-weight: bold; padding: 15px; 
-                min-height: 55px;
+                border-radius: 8px; font-size: 14px; font-weight: bold; padding: 10px; 
+                min-height: 45px;
             }}
             QPushButton:hover {{ background-color: {THEME['background_medium']}; border-color: {THEME['accent_secondary']}; }}
             QPushButton:pressed {{ background-color: #d0d8e0; }}
@@ -240,6 +240,8 @@ class AdminControlPage(QWidget):
         # Wrap buttons in a scroll area
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         
         scroll_content = QWidget()
         scroll_layout = QVBoxLayout(scroll_content)
@@ -281,6 +283,12 @@ class AdminControlPage(QWidget):
         self.update_emp_id_btn.clicked.connect(self.update_employee_id)
         self.update_emp_id_btn.setCursor(Qt.PointingHandCursor)
         scroll_layout.addWidget(self.update_emp_id_btn)
+        
+        # Change Admin Password Button
+        self.change_pwd_btn = QPushButton("🔑 Change Admin Password")
+        self.change_pwd_btn.clicked.connect(self.change_admin_password)
+        self.change_pwd_btn.setCursor(Qt.PointingHandCursor)
+        scroll_layout.addWidget(self.change_pwd_btn)
         
         scroll_layout.addStretch(1)
         scroll_area.setWidget(scroll_content)
@@ -441,7 +449,11 @@ class AdminControlPage(QWidget):
             QMessageBox.information(self, "Success", f"Updated employee ID for '{person}'")
         else:
             QMessageBox.critical(self, "Update Failed", f"Could not update employee ID for '{person}'")
-    
+
+    def change_admin_password(self):
+        """UI placeholder for changing admin password via API"""
+        QMessageBox.information(self, "Change Admin Password", "This feature will be implemented in a future update to change the password via the server API.")
+
     def add_new_face(self):
         """Emit signal to start face registration from admin page"""
         self.add_new_face_requested.emit()
