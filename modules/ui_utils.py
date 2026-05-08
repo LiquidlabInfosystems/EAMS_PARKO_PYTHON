@@ -77,3 +77,54 @@ class VKLineEdit(QLineEdit):
         if cls._kb_proc is not None and cls._kb_proc.poll() is None:
             cls._kb_proc.terminate()
             cls._kb_proc = None
+
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
+
+class KioskInputDialog(QDialog):
+    """Custom input dialog that uses VKLineEdit for virtual keyboard support"""
+    def __init__(self, title, label, initial_text="", parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setMinimumWidth(300)
+        
+        layout = QVBoxLayout(self)
+        self.label = QLabel(label)
+        layout.addWidget(self.label)
+        
+        self.line_edit = VKLineEdit(initial_text)
+        layout.addWidget(self.line_edit)
+        
+        button_layout = QHBoxLayout()
+        self.ok_button = QPushButton("OK")
+        self.ok_button.clicked.connect(self.accept)
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self.reject)
+        
+        button_layout.addWidget(self.ok_button)
+        button_layout.addWidget(self.cancel_button)
+        layout.addLayout(button_layout)
+        
+        self.setStyleSheet("""
+            QDialog { background-color: #1a1a1a; border: 2px solid #00ff88; border-radius: 10px; }
+            QLabel { color: #ffffff; font-size: 14px; margin-bottom: 5px; }
+            QLineEdit { 
+                background-color: #2d2d2d; color: #ffffff; border: 1px solid #4d4d4d; 
+                border-radius: 5px; padding: 10px; font-size: 16px;
+            }
+            QPushButton {
+                background-color: #2d2d2d; color: #ffffff; border: 1px solid #4d4d4d;
+                border-radius: 5px; padding: 8px; min-width: 80px;
+            }
+            QPushButton:hover { border-color: #00ff88; }
+        """)
+        QTimer.singleShot(100, self.line_edit.setFocus)
+
+    def text_value(self):
+        return self.line_edit.text()
+
+    @staticmethod
+    def get_text(parent, title, label, initial_text=""):
+        dialog = KioskInputDialog(title, label, initial_text, parent)
+        if dialog.exec() == QDialog.Accepted:
+            return dialog.text_value(), True
+        return "", False

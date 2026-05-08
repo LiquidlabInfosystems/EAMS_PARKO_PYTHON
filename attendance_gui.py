@@ -17,8 +17,8 @@ import cv2
 
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                                QHBoxLayout, QLabel, QPushButton, QFrame, 
-                               QStackedWidget, QDialog, QLineEdit, QTimer)
-from PySide6.QtCore import Qt, Signal, Slot, QPropertyAnimation, QEasingCurve
+                               QStackedWidget, QDialog, QLineEdit)
+from PySide6.QtCore import Qt, Signal, Slot, QPropertyAnimation, QEasingCurve, QTimer
 
 # Import core modules
 import config
@@ -29,7 +29,7 @@ from modules.mqtt_incident_reporter import MQTTIncidentReporter
 from modules.unknown_person_tracker import UnknownPersonTracker
 from modules.temporal_buffer import TemporalRecognitionBuffer
 from modules.mqtt_face_registration import MQTTFaceRegistrationHandler
-from modules.ui_utils import VKLineEdit
+from modules.ui_utils import VKLineEdit, KioskInputDialog
 
 # Import New Screens
 from screens.welcome_screen import WelcomeScreen
@@ -318,7 +318,7 @@ class AttendanceKioskGUI(QMainWindow):
                 self.notification_overlay.show_notification("Error", "Invalid Password", "error")
 
     def start_registration(self):
-        name, ok = QLineEdit.getText(self, "Register", "Person Name:")
+        name, ok = KioskInputDialog.get_text(self, "Register New Face", "Enter person's name:")
         if ok and name:
             self.screens.setCurrentIndex(3) # Registration Screen
             self.registration_screen.start_registration(name, None)

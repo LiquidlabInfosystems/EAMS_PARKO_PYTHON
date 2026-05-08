@@ -6,7 +6,7 @@ Face List Screen for viewing and managing registered faces
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
                                QListWidget, QListWidgetItem, QMessageBox, QInputDialog)
 from PySide6.QtCore import Qt, Signal
-from screens.admin_screen import KioskInputDialog
+from modules.ui_utils import KioskInputDialog
 
 class FaceListScreen(QWidget):
     """Screen for listing and managing registered faces"""
