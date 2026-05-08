@@ -12,6 +12,7 @@ API_SERVER_DOMAIN = "https://parko.in"
 # API_SERVER_IP = "192.168.1.8"
 SERVER_AS_DOMAIN = False  # If True, use domain (ignores port); if False, use IP with port
 ENABLE_MQTT_FEATURES=False
+ADMIN_PASSWORD = "1234"
 
 API_SERVER_PORT = 3008
 API_ENDPOINT = "/api/attendance/record"  # ← API endpoint path

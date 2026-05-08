@@ -150,7 +150,7 @@ class AttendanceKioskGUI(QMainWindow):
         self.face_recognizer = FaceRecognizer()
         self.api_client = AttendanceAPIClient() if config.API_ENABLED else None
         self.state_manager = AttendanceStateManager()
-        self.incident_reporter = MQTTIncidentReporter() if config.MQTT_INCIDENT_REPORTING else None
+        self.incident_reporter = MQTTIncidentReporter() if getattr(config, 'ENABLE_MQTT_FEATURES', False) else None
         self.unknown_tracker = UnknownPersonTracker()
         self.temporal_buffer = TemporalRecognitionBuffer(config.TEMPORAL_BUFFER_SIZE, config.TEMPORAL_AGREEMENT_THRESHOLD)
         self.notification_overlay = NotificationOverlay(self)
@@ -270,15 +270,19 @@ class AttendanceKioskGUI(QMainWindow):
             if recognized:
                 person = recognized[0]
                 name = person.get('name', 'Unknown')
-                self.temporal_buffer.add_result(name)
-                stable_name = self.temporal_buffer.get_confirmed_identity()
+                similarity = person.get('similarity', 0.0)
+                self.temporal_buffer.add_result(name, similarity)
+                stable_name, agreement, is_stable = self.temporal_buffer.get_consensus()
                 
                 if stable_name and stable_name != "Unknown":
                     self.confirmed_person_name = stable_name
                     self.face_confirmed = True
-                    self.screens.setCurrentIndex(1) # Switch to attendance screen
-                    self.attendance_screen.set_buttons_visible(True)
-                    self.status_bar.setText(f"Person: {stable_name}")
+                    if self.screens.currentIndex() == 0:
+                        self.screens.setCurrentIndex(1)
+                        self.attendance_screen.set_buttons_visible(True)
+                        self._sync_status_for_person(stable_name)
+                    
+                    self.status_bar.setText(f"👤 {stable_name} | {self.state_manager.get_state_display(stable_name)}")
                 else:
                     self.face_confirmed = False
                     self.attendance_screen.set_buttons_visible(False)
@@ -297,8 +301,61 @@ class AttendanceKioskGUI(QMainWindow):
         self.event_in_progress = True
         self.status_bar.setText(f"Processing {action_type}...")
         
-        # Simulate API call or logic
-        QTimer.singleShot(1500, lambda: self.complete_action(action_type))
+        # 1. Log locally and to API
+        timestamp = datetime.now()
+        
+        # Map UI action to StateManager method
+        action_map = {
+            "Time In": self.state_manager.time_in,
+            "Time Out": self.state_manager.time_out,
+            "Break Start": self.state_manager.break_start,
+            "Break End": self.state_manager.break_end,
+            "Job Start": self.state_manager.job_start,
+            "Job End": self.state_manager.job_end
+        }
+        
+        method = action_map.get(action_type)
+        if method:
+            success, msg = method(self.confirmed_person_name)
+            if not success:
+                self.notification_overlay.show_notification("Warning", msg, "warning")
+                self.event_in_progress = False
+                return
+        
+        # 2. Send to API
+        if self.api_client:
+            emp_id = self.face_recognizer.get_employee_id(self.confirmed_person_name)
+            self.api_client.send_attendance_event(
+                name=self.confirmed_person_name,
+                action=action_type.upper(),
+                timestamp=timestamp,
+                employee_id=emp_id
+            )
+            
+        # 3. Finalize
+        QTimer.singleShot(1000, lambda: self.complete_action(action_type))
+
+    def _sync_status_for_person(self, name):
+        """Fetch attendance status from server and update local state"""
+        if not self.api_client: return
+        
+        def on_sync_complete(response):
+            success, msg, is_blocked = self.state_manager.sync_from_server(name, response)
+            if is_blocked:
+                self.notification_overlay.show_notification("⚠️ Action Blocked", msg, "warning", 5000)
+                self.attendance_screen.set_buttons_visible(False)
+                # Auto-reset to welcome after 5s
+                QTimer.singleShot(5000, lambda: self.screens.setCurrentIndex(0))
+
+        # Run API call in background thread via a simple timer or just call it if it's fast
+        # For simplicity in this modular version, we assume api_client handles its own threads for sending
+        # but for fetching status we might need a quick call.
+        try:
+            # This is a simplified version; real production would use a QThread for this
+            response = self.api_client.get_attendance_status(name)
+            on_sync_complete(response)
+        except Exception as e:
+            print(f"Sync error: {e}")
 
     def complete_action(self, action_type):
         self.notification_overlay.show_notification("Success", f"{action_type} recorded for {self.confirmed_person_name}", "success")
@@ -312,7 +369,8 @@ class AttendanceKioskGUI(QMainWindow):
         dialog = AdminAuthDialog(self)
         if dialog.exec() == QDialog.Accepted:
             password = dialog.password_input.text()
-            if password == config.ADMIN_PASSWORD:
+            admin_pass = getattr(config, 'ADMIN_PASSWORD', '1234')
+            if password == admin_pass:
                 self.screens.setCurrentIndex(2) # Admin Screen
             else:
                 self.notification_overlay.show_notification("Error", "Invalid Password", "error")
