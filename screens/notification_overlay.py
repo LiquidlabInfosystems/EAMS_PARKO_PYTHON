@@ -61,26 +61,32 @@ class NotificationOverlay(QWidget):
         def _pw(n): return max(1, int(n * w / 480))
         def _ph(n): return max(1, int(n * h / 854))
 
-        self.container_layout.setSpacing(_ph(8))
+        self.container_layout.setSpacing(_ph(6))
 
         self.container.setStyleSheet(f"""
             QFrame {{
                 background-color: {self.bg_color};
-                border: 3px solid {self.border_color};
-                border-radius: {_pw(8)}px;
-                padding: {_ph(15)}px;
-                min-width: {_pw(150)}px;
-                max-width: {_pw(250)}px;
+                border: 2px solid {self.border_color};
+                border-radius: {_pw(16)}px;
+                padding: {_ph(14)}px {_pw(18)}px;
+                min-width: {_pw(160)}px;
+                max-width: {_pw(260)}px;
             }}
             QLabel {{
                 color: #ffffff;
                 background: transparent;
                 border: none;
+                font-family: 'Inter', 'Segoe UI', sans-serif;
             }}
         """)
-        self.icon_label.setStyleSheet(f"font-size: {_pf(30)}px;")
-        self.title_label.setStyleSheet(f"font-size: {_pf(16)}px; font-weight: bold;")
-        self.message_label.setStyleSheet(f"font-size: {_pf(12)}px;")
+        self.icon_label.setStyleSheet(f"font-size: {_pf(32)}px;")
+        self.title_label.setStyleSheet(
+            f"font-size: {_pf(15)}px; font-weight: 700;"
+            f" font-family: 'Inter','Segoe UI',sans-serif;"
+        )
+        self.message_label.setStyleSheet(
+            f"font-size: {_pf(11)}px; font-family: 'Inter','Segoe UI',sans-serif;"
+        )
 
     def show_notification(self, title, message, notification_type="success", duration_ms=3000):
         """

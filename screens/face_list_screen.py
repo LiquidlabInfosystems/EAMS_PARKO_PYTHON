@@ -97,66 +97,71 @@ class FaceListScreen(QWidget):
         def _ph(n): return max(1, int(n * h / 854))
 
         self.setStyleSheet(f"""
-            QWidget {{ background-color: #111118; }}
+            QWidget {{ background-color: #0a0a14; }}
             QFrame#header {{
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #1a1a2e, stop:1 #16213e);
-                border-bottom: 2px solid #0f3460;
+                    stop:0 #0d1117, stop:1 #111827);
+                border-bottom: 1px solid #1e2535;
             }}
             QPushButton#backBtn {{
                 background-color: transparent;
-                color: #4a90e2;
-                border: 1px solid #4a90e2;
-                border-radius: {_pw(6)}px;
+                color: #60a5fa;
+                border: 1px solid #334155;
+                border-radius: {_pw(8)}px;
                 font-size: {_pf(12)}px;
-                font-weight: bold;
-                padding: {_ph(6)}px;
+                font-weight: 700;
+                font-family: 'Inter', 'Segoe UI', sans-serif;
+                padding: {_ph(7)}px {_pw(12)}px;
             }}
-            QPushButton#backBtn:pressed {{ background-color: rgba(74,144,226,0.2); }}
+            QPushButton#backBtn:pressed {{ background-color: rgba(96,165,250,0.1); }}
             QLabel#listTitle {{
-                color: #ffffff;
-                font-size: {_pf(16)}px;
-                font-weight: bold;
+                color: #f1f5f9;
+                font-size: {_pf(15)}px;
+                font-weight: 700;
+                font-family: 'Inter', 'Segoe UI', sans-serif;
                 background: transparent;
             }}
             QLabel#countBadge {{
                 color: #ffffff;
-                background-color: #4a90e2;
+                background-color: #3b82f6;
                 border-radius: {_pw(12)}px;
                 font-size: {_pf(11)}px;
-                font-weight: bold;
-                padding: {_ph(3)}px;
+                font-weight: 700;
+                font-family: 'Inter', 'Segoe UI', sans-serif;
+                padding: {_ph(4)}px;
             }}
             QFrame#searchFrame {{
-                background-color: #1a1a2e;
-                border-bottom: 1px solid #2a2a3e;
+                background-color: #0d1117;
+                border-bottom: 1px solid #1e2535;
             }}
             VKLineEdit#searchInput, QLineEdit#searchInput {{
-                background-color: #2a2a3e;
-                color: #ffffff;
-                border: 1px solid #3a3a4e;
-                border-radius: {_pw(8)}px;
-                padding: {_ph(8)}px {_pw(12)}px;
+                background-color: #111827;
+                color: #f1f5f9;
+                border: 1px solid #334155;
+                border-radius: {_pw(10)}px;
+                padding: {_ph(10)}px {_pw(14)}px;
                 font-size: {_pf(13)}px;
+                font-family: 'Inter', 'Segoe UI', sans-serif;
             }}
-            VKLineEdit#searchInput:focus {{ border-color: #4a90e2; }}
+            VKLineEdit#searchInput:focus {{ border-color: #3b82f6; }}
             QScrollArea#scrollArea {{
-                background-color: #111118;
+                background-color: #0a0a14;
                 border: none;
             }}
             QScrollArea#scrollArea > QWidget > QWidget {{
-                background-color: #111118;
+                background-color: #0a0a14;
             }}
             QScrollBar:vertical {{
-                background: #1a1a2e;
-                width: {_pw(8)}px;
-                border-radius: {_pw(4)}px;
+                background: #0d1117;
+                width: {_pw(6)}px;
+                border-radius: {_pw(3)}px;
             }}
             QScrollBar::handle:vertical {{
-                background: #4a90e2;
-                border-radius: {_pw(4)}px;
+                background: #334155;
+                border-radius: {_pw(3)}px;
                 min-height: {_ph(30)}px;
             }}
+            QScrollBar::handle:vertical:hover {{ background: #3b82f6; }}
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
         """)
 
@@ -206,15 +211,15 @@ class FaceListScreen(QWidget):
         """Create a single face card"""
         card = QFrame()
         card.setObjectName("faceCard")
+        colors = ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#06b6d4"]
+        accent = colors[index % len(colors)]
         card.setStyleSheet(f"""
             QFrame#faceCard {{
-                background-color: #1e1e2e;
-                border: 1px solid #2a2a3e;
-                border-radius: {pw(8)}px;
+                background-color: #0d1117;
+                border: 1px solid #1e2535;
+                border-left: 3px solid {accent};
+                border-radius: {pw(12)}px;
                 padding: {ph(2)}px;
-            }}
-            QFrame#faceCard:hover {{
-                border-color: #4a90e2;
             }}
         """)
 
@@ -226,14 +231,15 @@ class FaceListScreen(QWidget):
         avatar = QLabel(name[0].upper() if name else "?")
         avatar.setAlignment(Qt.AlignCenter)
         avatar.setFixedSize(pw(36), pw(36))
-        colors = ["#4a90e2", "#e2574a", "#50c878", "#f5a623", "#bd10e0", "#00bcd4"]
+        colors = ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#06b6d4"]
         bg = colors[index % len(colors)]
         avatar.setStyleSheet(f"""
             background-color: {bg};
             color: #ffffff;
             border-radius: {pw(18)}px;
             font-size: {pf(14)}px;
-            font-weight: bold;
+            font-weight: 700;
+            font-family: 'Inter', 'Segoe UI', sans-serif;
         """)
         layout.addWidget(avatar)
 
@@ -243,17 +249,19 @@ class FaceListScreen(QWidget):
 
         name_label = QLabel(name)
         name_label.setStyleSheet(f"""
-            color: #ffffff;
+            color: #f1f5f9;
             font-size: {pf(13)}px;
-            font-weight: bold;
+            font-weight: 700;
+            font-family: 'Inter', 'Segoe UI', sans-serif;
             background: transparent;
         """)
         info.addWidget(name_label)
 
         id_label = QLabel(f"ID: {emp_id}" if emp_id else "No ID assigned")
         id_label.setStyleSheet(f"""
-            color: {'#8a8aaa' if not emp_id else '#4a90e2'};
+            color: {'#475569' if not emp_id else '#60a5fa'};
             font-size: {pf(10)}px;
+            font-family: 'Inter', 'Segoe UI', sans-serif;
             background: transparent;
         """)
         info.addWidget(id_label)
@@ -264,8 +272,9 @@ class FaceListScreen(QWidget):
         num = QLabel(f"#{index + 1}")
         num.setAlignment(Qt.AlignCenter)
         num.setStyleSheet(f"""
-            color: #5a5a7a;
+            color: #475569;
             font-size: {pf(10)}px;
+            font-family: 'Inter', 'Segoe UI', sans-serif;
             background: transparent;
         """)
         layout.addWidget(num)

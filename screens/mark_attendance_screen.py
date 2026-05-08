@@ -93,41 +93,35 @@ class MarkAttendanceScreen(QWidget):
     def init_ui(self):
         """Initialize UI"""
         self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(pw(8), ph(6), pw(8), ph(6))
-        self.main_layout.setSpacing(ph(3))
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
 
-        # ── Header row: title (centred) + admin button (right) ────────
+        # ── Slim top bar: admin icon only (right-aligned) ─────────────
         header_widget = QWidget()
         header_widget.setObjectName("headerBar")
         header_layout = QHBoxLayout(header_widget)
-        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setContentsMargins(pw(8), ph(6), pw(8), ph(6))
         header_layout.setSpacing(0)
-
-        self.title_label = QLabel("ERP")
-        self.title_label.setObjectName("title")
-        self.title_label.setAlignment(Qt.AlignCenter)
-        self.title_label.setWordWrap(True)
-        header_layout.addStretch(1)
-        header_layout.addWidget(self.title_label)
         header_layout.addStretch(1)
 
-        self.admin_icon_btn = QPushButton("⚙️")
+        self.admin_icon_btn = QPushButton("⚙")
         self.admin_icon_btn.setObjectName("adminIcon")
         self.admin_icon_btn.clicked.connect(self.admin_requested.emit)
         self.admin_icon_btn.setCursor(Qt.PointingHandCursor)
-        self.admin_icon_btn.setFixedSize(ph(36), ph(36))
+        self.admin_icon_btn.setFixedSize(ph(32), ph(32))
         self.admin_icon_btn.setVisible(False)
         header_layout.addWidget(self.admin_icon_btn)
 
         self.main_layout.addWidget(header_widget)
 
-        # ── Status / Instruction / Feedback labels ─────────────────────
+        # ── Compact status strip ───────────────────────────────────────
         self.status_label = QLabel("Starting...")
         self.status_label.setObjectName("status")
         self.status_label.setAlignment(Qt.AlignCenter)
-        self.status_label.setWordWrap(True)
+        self.status_label.setWordWrap(False)
         self.main_layout.addWidget(self.status_label)
 
+        # instruction and feedback kept for code compatibility, hidden by default
         self.instruction_label = QLabel("")
         self.instruction_label.setObjectName("instruction")
         self.instruction_label.setAlignment(Qt.AlignCenter)
@@ -149,16 +143,15 @@ class MarkAttendanceScreen(QWidget):
         self.welcome_widget = WelcomeScreen()
         self.display_stack.addWidget(self.welcome_widget)
 
-        # Camera label (index 1)
+        # Camera label (index 1) — fills all available height
         self.camera_label = QLabel()
         self.camera_label.setObjectName("camera")
         self.camera_label.setAlignment(Qt.AlignCenter)
-        self.camera_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
-        self.camera_label.setMinimumHeight(ph(340))
-        self.camera_label.setMaximumHeight(ph(760))
+        self.camera_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.display_stack.addWidget(self.camera_label)
 
         self.display_stack.setCurrentIndex(0)
+        self.display_stack.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.main_layout.addWidget(self.display_stack, stretch=1)
 
         # ── Action buttons container ───────────────────────────────────
@@ -213,7 +206,9 @@ class MarkAttendanceScreen(QWidget):
             self.job_in_btn, self.job_out_btn
         ]
 
-        self.button_frame.setFixedHeight(ph(300))
+        # Height driven by content rows — will be capped in _enter_action_mode
+        self.button_frame.setMinimumHeight(ph(160))
+        self.button_frame.setMaximumHeight(ph(260))
         self.button_frame.setVisible(False)
         self.main_layout.addWidget(self.button_frame)
 
@@ -232,88 +227,151 @@ class MarkAttendanceScreen(QWidget):
         def _ph(n): return max(1, int(n * h / 854))
 
         self.setStyleSheet(f"""
-            QWidget {{ background-color: #0d0d1a; }}
-            QWidget#headerBar {{ background-color: transparent; }}
-            QLabel#title {{
-                color: #ffffff; font-size: {_pf(15)}px; font-weight: bold;
-                padding: {_ph(2)}px; letter-spacing: 1px; background: transparent;
+            /* ── Base ─────────────────────────────────────────────── */
+            QWidget {{ background-color: #0a0a14; color: #e2e8f0; }}
+            QWidget#headerBar {{
+                background-color: #0d1117;
+                border-bottom: 1px solid #1e2535;
             }}
+
+            /* ── Status strip ─────────────────────────────────────── */
             QLabel#status {{
-                color: #00ff88; font-size: {_pf(12)}px;
-                padding: {_ph(2)}px; background: transparent;
+                color: #64748b;
+                font-size: {_pf(11)}px;
+                font-family: 'Inter', 'Segoe UI', sans-serif;
+                padding: {_ph(3)}px {_pw(12)}px;
+                background: #0d1117;
+                border-bottom: 1px solid #1e2535;
             }}
             QLabel#instruction {{
-                color: #00ff88; font-size: {_pf(14)}px; font-weight: bold;
-                padding: {_ph(3)}px; background: transparent;
+                color: #10b981;
+                font-size: {_pf(12)}px;
+                font-weight: 600;
+                padding: {_ph(2)}px;
+                background: transparent;
             }}
             QLabel#feedback {{
-                color: #ffffff; font-size: {_pf(14)}px; font-weight: bold;
-                padding: {_ph(3)}px; background: transparent;
+                color: #f1f5f9;
+                font-size: {_pf(12)}px;
+                font-weight: 600;
+                padding: {_ph(2)}px;
+                background: transparent;
             }}
+
+            /* ── Camera view ──────────────────────────────────────── */
             QLabel#camera {{
                 background-color: #000000;
-                border: 2px solid #1a3a5e;
-                border-radius: {_pw(10)}px;
+                border: none;
             }}
+
+            /* ── Action button container ──────────────────────────── */
+            QFrame#buttonContainer {{
+                background-color: #0d1117;
+                border-top: 1px solid #1e2535;
+            }}
+
+            /* ── Buttons ──────────────────────────────────────────── */
             QPushButton {{
-                background-color: #1a1a2e;
-                color: #ffffff;
-                border: 2px solid #3a3a5e;
-                border-radius: {_pw(8)}px;
+                background-color: #111827;
+                color: #f1f5f9;
+                border: 1px solid #1e2535;
+                border-radius: {_pw(10)}px;
                 font-size: {_pf(13)}px;
-                font-weight: bold;
-                padding: {_ph(6)}px;
-                min-height: {_ph(38)}px;
+                font-weight: 700;
+                font-family: 'Inter', 'Segoe UI', sans-serif;
+                padding: {_ph(8)}px {_pw(6)}px;
+                min-height: {_ph(48)}px;
+                letter-spacing: 0.5px;
             }}
-            QPushButton:hover {{ background-color: #252540; border-color: #00ff88; }}
-            QPushButton:pressed {{ background-color: #111125; }}
-            QPushButton#timeIn  {{ border-color: #4a90e2; border-left: 4px solid #4a90e2; }}
-            QPushButton#timeOut {{ border-color: #e24a4a; border-left: 4px solid #e24a4a; }}
-            QPushButton#breakIn {{ border-color: #f5a623; border-left: 4px solid #f5a623; }}
-            QPushButton#breakOut{{ border-color: #ff8c00; border-left: 4px solid #ff8c00; }}
-            QPushButton#jobIn   {{ border-color: #bd10e0; border-left: 4px solid #bd10e0; }}
-            QPushButton#jobOut  {{ border-color: #9b10c0; border-left: 4px solid #9b10c0; }}
-            QPushButton#addFace {{ border-color: #50c878; }}
-            QPushButton#capture {{
-                background-color: #1a3a6e; border-color: #4a90e2;
-                font-size: {_pf(16)}px;
+            QPushButton:pressed {{ background-color: #0d1117; }}
+
+            /* coloured left-accent bars */
+            QPushButton#timeIn  {{
+                border-left: 4px solid #3b82f6;
+                background-color: rgba(59,130,246,0.06);
+            }}
+            QPushButton#timeOut {{
+                border-left: 4px solid #ef4444;
+                background-color: rgba(239,68,68,0.06);
+            }}
+            QPushButton#breakIn {{
+                border-left: 4px solid #f59e0b;
+                background-color: rgba(245,158,11,0.06);
+            }}
+            QPushButton#breakOut {{
+                border-left: 4px solid #f97316;
+                background-color: rgba(249,115,22,0.06);
+            }}
+            QPushButton#jobIn {{
+                border-left: 4px solid #8b5cf6;
+                background-color: rgba(139,92,246,0.06);
+            }}
+            QPushButton#jobOut {{
+                border-left: 4px solid #6d28d9;
+                background-color: rgba(109,40,217,0.06);
+            }}
+
+            /* registration / capture */
+            QPushButton#addFace  {{ border-color: #10b981; }}
+            QPushButton#capture  {{
+                background-color: rgba(59,130,246,0.15);
+                border: 2px solid #3b82f6;
+                font-size: {_pf(15)}px;
             }}
             QPushButton#cancelReg {{
-                background-color: #3a1a1a; border-color: #e24a4a;
-                font-size: {_pf(16)}px;
+                background-color: rgba(239,68,68,0.12);
+                border: 2px solid #ef4444;
+                font-size: {_pf(15)}px;
             }}
+
+            /* admin gear */
             QPushButton#adminIcon {{
-                background-color: #2a1a00; border: 1px solid #ff8c00;
-                border-radius: {_pw(18)}px;
-                font-size: {_pf(14)}px; padding: 0;
+                background-color: transparent;
+                border: 1px solid #334155;
+                border-radius: {_pw(16)}px;
+                font-size: {_pf(14)}px;
+                color: #94a3b8;
+                padding: 0;
             }}
-            QPushButton#adminIcon:hover {{ background-color: #3a2500; }}
-            QFrame#buttonContainer {{
-                background-color: #080814;
-                border-top: 2px solid #1a2a5e;
-                padding: {_ph(4)}px;
-            }}
+            QPushButton#adminIcon:pressed {{ background-color: rgba(255,255,255,0.05); }}
+
+            /* progress bar */
             QProgressBar {{
-                border: 2px solid #4a90e2; border-radius: {_pw(5)}px; text-align: center;
-                color: #ffffff; font-weight: bold; min-height: {_ph(30)}px;
-                font-size: {_pf(14)}px; background: #1a1a2e;
+                border: 1px solid #1e2535;
+                border-radius: {_pw(5)}px;
+                text-align: center;
+                color: #f1f5f9;
+                font-weight: bold;
+                min-height: {_ph(28)}px;
+                font-size: {_pf(13)}px;
+                background: #111827;
             }}
-            QProgressBar::chunk {{ background-color: #00ff88; }}
+            QProgressBar::chunk {{ background-color: #10b981; border-radius: {_pw(4)}px; }}
         """)
 
-        self.main_layout.setContentsMargins(_pw(8), _ph(4), _pw(8), _ph(4))
-        self.main_layout.setSpacing(_ph(2))
+        if self.feedback_label.text().startswith("\u2705"):
+            self.feedback_label.setStyleSheet(
+                f"color: #10b981; font-size: {_pf(12)}px; font-weight: 700;"
+                f" padding: {_ph(2)}px; background: transparent; border: none;"
+            )
+        elif self.feedback_label.text().startswith("\u274c"):
+            self.feedback_label.setStyleSheet(
+                f"color: #ef4444; font-size: {_pf(12)}px; font-weight: 700;"
+                f" padding: {_ph(2)}px; background: transparent; border: none;"
+            )
 
-        if self.feedback_label.text().startswith("✅"):
-            self.feedback_label.setStyleSheet(
-                f"color: #00ff88; font-size: {_pf(14)}px; font-weight: bold;"
-                f" padding: {_ph(5)}px; background: transparent; border: none;"
-            )
-        elif self.feedback_label.text().startswith("❌"):
-            self.feedback_label.setStyleSheet(
-                f"color: #ff4444; font-size: {_pf(14)}px; font-weight: bold;"
-                f" padding: {_ph(5)}px; background: transparent; border: none;"
-            )
+    # ── Layout-mode helpers ────────────────────────────────────────────────
+    def _enter_camera_mode(self):
+        """Expand camera to fill all available space (no buttons visible)."""
+        self.display_stack.setMaximumHeight(16777215)  # Qt QWIDGETSIZE_MAX
+
+    def _enter_action_mode(self):
+        """Shrink camera so action buttons fit below it comfortably."""
+        h = self.height()
+        _ph = lambda n: max(1, int(n * h / 854))
+        # Reserve ~220px (scaled) for the button panel; camera gets the rest
+        self.display_stack.setMaximumHeight(h - _ph(220))
+
 
     def show_welcome_screen(self):
         """Switch to welcome screen when no face detected for 3 seconds"""
@@ -321,6 +379,7 @@ class MarkAttendanceScreen(QWidget):
         self.display_stack.setCurrentIndex(0)
         print("🔴 Hiding buttons - no face detected (show_welcome_screen)")
         self.button_frame.setVisible(False)
+        self._enter_camera_mode()
         self.no_face_timeout = None
         if hasattr(self, 'welcome_widget'):
             self.welcome_widget.start_animation()
@@ -354,12 +413,13 @@ class MarkAttendanceScreen(QWidget):
 
         print("🔴 Hiding buttons - resetting face confirmation")
         self.button_frame.setVisible(False)
+        self._enter_camera_mode()
 
         self.show_welcome_screen()
 
     def show_feedback(self, message, is_success):
         """Show feedback with 3-second auto-fade using scaled UI"""
-        color = "#00ff88" if is_success else "#ff4444"
+        color = "#10b981" if is_success else "#ef4444"
 
         self.feedback_label.setStyleSheet(f"""
             color: {color};
@@ -787,7 +847,12 @@ class MarkAttendanceScreen(QWidget):
 
         visible_buttons = [btn for btn in self.all_action_buttons if btn.isVisible()]
         print(f"🔵 _rearrange_button_grid: {len(visible_buttons)} buttons visible, setting button_frame.setVisible({len(visible_buttons) > 0})")
-        self.button_frame.setVisible(len(visible_buttons) > 0)
+        has_buttons = len(visible_buttons) > 0
+        self.button_frame.setVisible(has_buttons)
+        if has_buttons:
+            self._enter_action_mode()
+        else:
+            self._enter_camera_mode()
         print(f"🔵 After setVisible, button_frame.isVisible() = {self.button_frame.isVisible()}")
 
         num_visible = len(visible_buttons)
