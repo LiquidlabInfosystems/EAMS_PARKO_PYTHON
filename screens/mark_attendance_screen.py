@@ -165,8 +165,9 @@ class MarkAttendanceScreen(QWidget):
         self.button_frame = QFrame()
         self.button_frame.setObjectName("buttonContainer")
         self.button_layout = QGridLayout(self.button_frame)
-        self.button_layout.setSpacing(ph(5))
-        self.button_layout.setContentsMargins(pw(12), ph(5), pw(12), ph(5))
+        self.button_layout.setHorizontalSpacing(pw(8))
+        self.button_layout.setVerticalSpacing(ph(8))
+        self.button_layout.setContentsMargins(pw(10), ph(10), pw(10), ph(10))
 
         btn_h = ph(40)
 
@@ -212,7 +213,7 @@ class MarkAttendanceScreen(QWidget):
             self.job_in_btn, self.job_out_btn
         ]
 
-        self.button_frame.setFixedHeight(ph(175))
+        self.button_frame.setFixedHeight(ph(200))
         self.button_frame.setVisible(False)
         self.main_layout.addWidget(self.button_frame)
 
