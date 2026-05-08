@@ -1934,6 +1934,9 @@ class AttendanceKioskGUI(QMainWindow):
         VKLineEdit._hide_keyboard()
 
         # ── Step 3: Begin registration via dedicated module ──────────────────
+        self.event_in_progress = False  # Allow process_frame to run for registration bounding boxes
+        self.face_confirmed = False     # Clear any confirmed state
+        self.confirmed_frame = None
         self.registration_mode = True
         
         # Hide main UI labels to give full space to registration page
