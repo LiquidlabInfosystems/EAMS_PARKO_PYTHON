@@ -53,7 +53,7 @@ MARGIN_THRESHOLD = 0.05                 # Minimum margin between top 2 matches (
 # ★★★ TEMPORAL RECOGNITION SETTINGS ★★★
 TEMPORAL_BUFFER_SIZE = 5  # Number of frames to consider for voting
 TEMPORAL_AGREEMENT_THRESHOLD = 0.6  # 60% agreement required for consensus
-IDENTITY_LOCK_TIME = 2.0  # Seconds to lock identity after recognition (anti-flicker)
+IDENTITY_LOCK_TIME = 3.0  # Seconds to lock identity after recognition (anti-flicker)
 
 
 # MQTT Settings
