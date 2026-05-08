@@ -272,31 +272,46 @@ class AttendanceKioskGUI(QMainWindow):
             # Face recognition logic
             detected, recognized = self.face_recognizer.process_frame(self.latest_frame)
             
-            if recognized:
-                person = recognized[0]
-                name = person.get('name', 'Unknown')
-                similarity = person.get('similarity', 0.0)
-                self.temporal_buffer.add_result(name, similarity)
-                stable_name, agreement, is_stable = self.temporal_buffer.get_consensus()
+            if detected:
+                # Switch to attendance screen as soon as ANY face is detected
+                if self.screens.currentIndex() == 0:
+                    self.screens.setCurrentIndex(1)
                 
-                if stable_name and stable_name != "Unknown":
-                    self.confirmed_person_name = stable_name
-                    self.face_confirmed = True
-                    if self.screens.currentIndex() == 0:
-                        self.screens.setCurrentIndex(1)
-                        self.attendance_screen.set_buttons_visible(True)
-                        self._sync_status_for_person(stable_name)
+                if recognized:
+                    person = recognized[0]
+                    name = person.get('name', 'Unknown')
+                    similarity = person.get('similarity', 0.0)
+                    self.temporal_buffer.add_result(name, similarity)
+                    stable_name, agreement, is_stable = self.temporal_buffer.get_consensus()
                     
-                    self.status_bar.setText(f"👤 {stable_name} | {self.state_manager.get_state_display(stable_name)}")
+                    if stable_name and stable_name != "Unknown":
+                        self.confirmed_person_name = stable_name
+                        self.face_confirmed = True
+                        self.attendance_screen.set_buttons_visible(True)
+                        # Sync status only if just confirmed
+                        if not hasattr(self, '_last_synced_person') or self._last_synced_person != stable_name:
+                            self._sync_status_for_person(stable_name)
+                            self._last_synced_person = stable_name
+                        
+                        self.status_bar.setText(f"👤 {stable_name} | {self.state_manager.get_state_display(stable_name)}")
+                    else:
+                        self.face_confirmed = False
+                        self.attendance_screen.set_buttons_visible(False)
+                        self.status_bar.setText("⏳ Recognizing...")
                 else:
+                    self.temporal_buffer.clear()
                     self.face_confirmed = False
                     self.attendance_screen.set_buttons_visible(False)
-                    if self.screens.currentIndex() == 1: self.screens.setCurrentIndex(0)
+                    self.status_bar.setText("🔍 Face Detected")
             else:
+                # No face detected
                 self.temporal_buffer.clear()
                 self.face_confirmed = False
+                self._last_synced_person = None
                 self.attendance_screen.set_buttons_visible(False)
-                if self.screens.currentIndex() == 1: self.screens.setCurrentIndex(0)
+                if self.screens.currentIndex() == 1: 
+                    self.screens.setCurrentIndex(0)
+                self.status_bar.setText("Ready - Scan your face")
                 
         finally:
             self.processing = False
