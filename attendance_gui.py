@@ -213,11 +213,11 @@ class AttendanceKioskGUI(QMainWindow):
         # 1: Attendance Screen
         self.attendance_screen = AttendanceScreen()
         # Connect Welcome Screen Signals
-        self.welcome_screen.admin_requested.connect(self.show_admin_login)
+        self.welcome_screen.admin_requested.connect(self.request_admin_access)
         
         # Connect Attendance Screen Signals
         self.attendance_screen.action_clicked.connect(self.handle_attendance_action)
-        self.attendance_screen.admin_requested.connect(self.show_admin_login)
+        self.attendance_screen.admin_requested.connect(self.request_admin_access)
         self.screens.addWidget(self.attendance_screen)
         
         # 2: Admin Screen
