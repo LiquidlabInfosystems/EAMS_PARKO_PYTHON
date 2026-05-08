@@ -3,7 +3,7 @@
 Attendance Screen - Main interface for marking attendance
 """
 
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QGridLayout, QLabel, QPushButton, 
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton, 
                                QFrame, QSizePolicy)
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QImage, QPixmap
