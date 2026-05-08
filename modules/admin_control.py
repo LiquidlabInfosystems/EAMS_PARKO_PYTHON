@@ -218,13 +218,13 @@ class AdminControlPage(QWidget):
         footer = QFrame()
         footer.setObjectName("adminFooter")
         flayout = QHBoxLayout(footer)
-        flayout.setContentsMargins(pw(20), ph(16), pw(20), ph(16))
+        flayout.setContentsMargins(pw(20), ph(12), pw(20), ph(12))
 
         home_btn = QPushButton("🏠  Home")
         home_btn.setObjectName("homeBtn")
         home_btn.setCursor(Qt.PointingHandCursor)
         home_btn.clicked.connect(self.go_home)
-        home_btn.setMinimumHeight(ph(50))
+        home_btn.setMinimumHeight(ph(48))
         flayout.addWidget(home_btn)
 
         root.addWidget(footer)

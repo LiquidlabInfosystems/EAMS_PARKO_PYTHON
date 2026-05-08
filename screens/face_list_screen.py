@@ -53,19 +53,19 @@ class FaceListScreen(QWidget):
 
         root.addWidget(header)
 
-        # # ── Search bar ──────────────────────────────────────────────
-        # search_frame = QFrame()
-        # search_frame.setObjectName("searchFrame")
-        # search_layout = QHBoxLayout(search_frame)
-        # search_layout.setContentsMargins(pw(12), ph(6), pw(12), ph(6))
+        # ── Search bar ──────────────────────────────────────────────
+        search_frame = QFrame()
+        search_frame.setObjectName("searchFrame")
+        search_layout = QHBoxLayout(search_frame)
+        search_layout.setContentsMargins(pw(12), ph(6), pw(12), ph(6))
 
-        # self.search_input = VKLineEdit()
-        # self.search_input.setObjectName("searchInput")
-        # self.search_input.setPlaceholderText("🔍  Search by name or ID...")
-        # self.search_input.textChanged.connect(self._filter_list)
-        # search_layout.addWidget(self.search_input)
+        self.search_input = VKLineEdit()
+        self.search_input.setObjectName("searchInput")
+        self.search_input.setPlaceholderText("🔍  Search by name or ID...")
+        self.search_input.textChanged.connect(self._filter_list)
+        search_layout.addWidget(self.search_input)
 
-        # root.addWidget(search_frame)
+        root.addWidget(search_frame)
 
         # ── Scrollable list ─────────────────────────────────────────
         self.scroll_area = QScrollArea()
