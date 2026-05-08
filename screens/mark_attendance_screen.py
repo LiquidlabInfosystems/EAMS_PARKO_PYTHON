@@ -104,11 +104,11 @@ class MarkAttendanceScreen(QWidget):
         header_layout.setSpacing(0)
         header_layout.addStretch(1)
 
-        self.admin_icon_btn = QPushButton("⚙")
+        self.admin_icon_btn = QPushButton("⚙ Admin")
         self.admin_icon_btn.setObjectName("adminIcon")
         self.admin_icon_btn.clicked.connect(self.admin_requested.emit)
         self.admin_icon_btn.setCursor(Qt.PointingHandCursor)
-        self.admin_icon_btn.setFixedSize(ph(32), ph(32))
+        self.admin_icon_btn.setFixedHeight(ph(30))
         self.admin_icon_btn.setVisible(False)
         header_layout.addWidget(self.admin_icon_btn)
 
@@ -324,16 +324,18 @@ class MarkAttendanceScreen(QWidget):
                 font-size: {_pf(15)}px;
             }}
 
-            /* admin gear */
+            /* admin button */
             QPushButton#adminIcon {{
                 background-color: transparent;
-                border: 1px solid #334155;
-                border-radius: {_pw(16)}px;
-                font-size: {_pf(14)}px;
-                color: #94a3b8;
-                padding: 0;
+                border: 1px solid #475569;
+                border-radius: {_pw(6)}px;
+                font-size: {_pf(12)}px;
+                font-weight: 600;
+                color: #ffffff;
+                padding: {_ph(2)}px {_pw(10)}px;
+                letter-spacing: 0.5px;
             }}
-            QPushButton#adminIcon:pressed {{ background-color: rgba(255,255,255,0.05); }}
+            QPushButton#adminIcon:pressed {{ background-color: rgba(255,255,255,0.06); }}
 
             /* progress bar */
             QProgressBar {{

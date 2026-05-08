@@ -35,7 +35,7 @@ class TextInputDialog(QDialog):
                 border: none;
             }}
             QLabel {{
-                color: #cbd5e1;
+                color: #ffffff;
                 font-size: {pf(14)}px;
                 font-family: 'Inter', 'Segoe UI', sans-serif;
                 background: transparent;
@@ -150,7 +150,7 @@ class AdminPasswordDialog(QDialog):
                 border: none;
             }}
             QLabel {{
-                color: #cbd5e1;
+                color: #ffffff;
                 font-size: {pf(15)}px;
                 font-family: 'Inter', 'Segoe UI', sans-serif;
                 background: transparent;
@@ -278,7 +278,7 @@ class SimpleConfirmationDialog(QDialog):
         self.setStyleSheet(f"""
             QDialog {{ background-color: #0a0a14; }}
             QLabel {{
-                color: #cbd5e1;
+                color: #ffffff;
                 font-size: {pf(13)}px;
                 font-family: 'Inter', 'Segoe UI', sans-serif;
                 padding: {ph(4)}px;
