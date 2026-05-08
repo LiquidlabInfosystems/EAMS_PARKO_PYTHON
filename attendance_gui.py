@@ -1510,16 +1510,48 @@ class AttendanceKioskGUI(QMainWindow):
             # ★★★ END WELCOME SCREEN LOGIC ★★★
 
             if self.registration_mode:
+                # Check if all 10 samples already captured
+                current_step = getattr(self.registration_page, 'current_registration_step', 0)
+                steps = getattr(self.registration_page, 'registration_steps', [])
+                if steps and current_step >= len(steps):
+                    self.registration_page.display_camera_feed(display_frame)
+                    self.processing = False
+                    return
+
                 # Do detection to show boxes during registration
                 processed_for_det = self.face_recognizer.preprocess_image(frame_rgb)
                 detected_faces = self.face_recognizer.detect_faces(processed_for_det)
-                name = getattr(self.registration_page, 'registration_person_name', 'Person')
-                for face in detected_faces:
+                
+                if detected_faces:
+                    # Get LARGEST face (by area)
+                    face = max(detected_faces, key=lambda f: f['bbox'][2] * f['bbox'][3])
+                    
+                    # Extract bounding box coordinates
                     x, y, w, h = face['bbox']
-                    # Draw box and tag
-                    self.draw_box_rgb(display_frame, x, y, x + w, y + h, YELLOW_RGB, 4)
-                    self.draw_filled_box_rgb(display_frame, x, y - 50, x + w, y, YELLOW_RGB)
-                    self.put_text_rgb(display_frame, f"Registering {name}", x + 10, y - 20, (0,0,0), 0.8, 2)
+                    
+                    # ★★★ DRAW GREEN BOUNDING BOX ★★★
+                    self.draw_box_rgb(
+                        display_frame,           # Target image
+                        x,                       # Left edge
+                        y,                       # Top edge
+                        x + w,                   # Right edge
+                        y + h,                   # Bottom edge
+                        GREEN_RGB,               # Color
+                        thickness=4              # Line width
+                    )
+                    
+                    # ★★★ DRAW INSTRUCTION ICON ABOVE FACE ★★★
+                    if current_step < len(steps):
+                        icon = steps[current_step]["icon"]
+                        self.put_text_rgb(
+                            display_frame,
+                            icon,
+                            x + w//2 - 20,           # X: center of face, offset
+                            max(0, y - 20),          # Y: above face (ensure not negative)
+                            GREEN_RGB,
+                            scale=2.0,
+                            thickness=4
+                        )
                 
                 # Update current frame for capture logic (capture on original raw frame)
                 self.registration_page.set_current_frame(frame_rgb)
