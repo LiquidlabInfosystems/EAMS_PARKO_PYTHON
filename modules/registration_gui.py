@@ -391,14 +391,38 @@ class RegistrationPage(QWidget):
         self.registration_completed.emit()
 
     def cancel_registration(self):
-        """Cancel registration"""
-        reply = QMessageBox.question(
-            self, "Cancel", "Cancel registration?",
-            QMessageBox.Yes | QMessageBox.No
-        )
-        if reply == QMessageBox.Yes:
-            self.registration_cancelled.emit()
-            self.exit_registration_mode()
+            """Cancel registration"""
+
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle("Cancel")
+            msg_box.setText("Cancel registration?")
+            msg_box.setIcon(QMessageBox.Question)
+            msg_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+
+            msg_box.setStyleSheet("""
+                QMessageBox {
+                    background-color: #2b2b2b;
+                }
+                QLabel {
+                    color: white;
+                    font-size: 14px;
+                }
+                QPushButton {
+                    color: white;
+                    background-color: #444;
+                    padding: 5px 12px;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background-color: #555;
+                }
+            """)
+
+            reply = msg_box.exec()
+
+            if reply == QMessageBox.Yes:
+                self.registration_cancelled.emit()
+                self.exit_registration_mode()
     
     def exit_registration_mode(self):
         """Exit registration mode and cleanup"""
