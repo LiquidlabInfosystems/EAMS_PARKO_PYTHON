@@ -8,6 +8,7 @@ from screens.camera_controller import CameraThread, display_frame, draw_box_rgb,
 from screens.notification_overlay import NotificationOverlay
 from screens.dialogs import TextInputDialog, AdminPasswordDialog, SimpleConfirmationDialog
 from screens.mark_attendance_screen import MarkAttendanceScreen
+from screens.face_list_screen import FaceListScreen
 
 __all__ = [
     'pw', 'ph', 'pf',
@@ -15,4 +16,5 @@ __all__ = [
     'NotificationOverlay',
     'TextInputDialog', 'AdminPasswordDialog', 'SimpleConfirmationDialog',
     'MarkAttendanceScreen',
+    'FaceListScreen',
 ]

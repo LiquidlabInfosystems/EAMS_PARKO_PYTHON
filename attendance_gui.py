@@ -42,6 +42,7 @@ from screens.camera_controller import CameraThread
 from screens.notification_overlay import NotificationOverlay
 from screens.dialogs import TextInputDialog, AdminPasswordDialog
 from screens.mark_attendance_screen import MarkAttendanceScreen
+from screens.face_list_screen import FaceListScreen
 
 import config
 
@@ -215,6 +216,7 @@ class AttendanceKioskGUI(QMainWindow):
         self.admin_page = AdminControlPage(self.face_recognizer)
         self.admin_page.home_requested.connect(self.show_camera_page)
         self.admin_page.add_new_face_requested.connect(self.start_registration_from_admin)
+        self.admin_page.list_faces_requested.connect(self.show_face_list_page)
         self.pages_stack.addWidget(self.admin_page)
 
         # Page 2: Registration page
@@ -222,6 +224,11 @@ class AttendanceKioskGUI(QMainWindow):
         self.registration_page.registration_completed.connect(self.on_registration_finished)
         self.registration_page.registration_cancelled.connect(self.on_registration_finished)
         self.pages_stack.addWidget(self.registration_page)
+
+        # Page 3: Face list screen
+        self.face_list_page = FaceListScreen(self.face_recognizer)
+        self.face_list_page.back_requested.connect(self.show_admin_from_face_list)
+        self.pages_stack.addWidget(self.face_list_page)
 
         self.pages_stack.setCurrentIndex(0)
         main_layout.addWidget(self.pages_stack)
@@ -275,6 +282,15 @@ class AttendanceKioskGUI(QMainWindow):
     def show_camera_page(self):
         """Show the camera page"""
         self.pages_stack.setCurrentIndex(0)
+
+    def show_face_list_page(self):
+        """Show the face list screen and refresh data"""
+        self.face_list_page.refresh()
+        self.pages_stack.setCurrentIndex(3)
+
+    def show_admin_from_face_list(self):
+        """Return from face list to admin page"""
+        self.pages_stack.setCurrentIndex(1)
 
     def start_registration_from_admin(self):
         """Start registration when triggered from admin page"""
