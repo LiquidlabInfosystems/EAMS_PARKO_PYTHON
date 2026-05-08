@@ -167,9 +167,9 @@ class MarkAttendanceScreen(QWidget):
         self.button_layout = QGridLayout(self.button_frame)
         self.button_layout.setHorizontalSpacing(pw(8))
         self.button_layout.setVerticalSpacing(ph(8))
-        self.button_layout.setContentsMargins(pw(10), ph(10), pw(10), ph(10))
+        self.button_layout.setContentsMargins(pw(10), ph(15), pw(10), ph(10))
 
-        btn_h = ph(40)
+        btn_h = ph(50)
 
         self.time_in_btn = QPushButton("🕐 TIME IN")
         self.time_in_btn.setObjectName("timeIn")
@@ -213,7 +213,7 @@ class MarkAttendanceScreen(QWidget):
             self.job_in_btn, self.job_out_btn
         ]
 
-        self.button_frame.setFixedHeight(ph(200))
+        self.button_frame.setFixedHeight(ph(300))
         self.button_frame.setVisible(False)
         self.main_layout.addWidget(self.button_frame)
 
