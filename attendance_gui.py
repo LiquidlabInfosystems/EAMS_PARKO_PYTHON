@@ -1275,14 +1275,8 @@ class AttendanceKioskGUI(QMainWindow):
 
             q_image = QImage(frame_bgr.data, width, height, bytes_per_line, QImage.Format_RGB888)
 
-            # Set fixed height once to match video frame height
-            if not hasattr(self, '_camera_height_set'):
-                self.camera_label.setFixedHeight(height)
-                self._camera_height_set = True
-
             scaled_pixmap = QPixmap.fromImage(q_image).scaled(
-                self.camera_label.width(),
-                height, # Use frame height as target
+                self.camera_label.size(),
                 Qt.KeepAspectRatio,
                 Qt.SmoothTransformation
             )
