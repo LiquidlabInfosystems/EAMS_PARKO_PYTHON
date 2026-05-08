@@ -199,31 +199,25 @@ class RegistrationPage(QWidget):
         self.current_frame = frame_rgb.copy()
     
     def display_camera_feed(self, frame_rgb):
-        """Display current camera frame with face tracking rectangle"""
+        """Display current camera frame with proper scaling and format"""
         if frame_rgb is None:
             return
             
         try:
-            display = frame_rgb.copy()
-
-            # Detect faces and draw bounding box on the largest one
-            faces = self.face_recognizer.detect_faces(display)
-            if faces:
-                face = max(faces, key=lambda f: f['bbox'][2] * f['bbox'][3])
-                x, y, w, h = face['bbox']
-                # Green rectangle for detected face
-                cv2.rectangle(display, (x, y), (x + w, y + h), (0, 255, 0), 3)
-
-            # Channel swap (RGB → BGR) to match QImage.Format_RGB888
-            frame_to_show = display[:, :, ::-1].copy()
+            # Replicate main app's display logic: Convert/Copy frame
+            # Channel swap (RGB <-> BGR) to match QImage.Format_RGB888 expectations
+            frame_to_show = frame_rgb[:, :, ::-1].copy()
             
             h, w, ch = frame_to_show.shape
             bytes_per_line = 3 * w
             
+            # Ensure data is contiguous
             if not frame_to_show.flags['C_CONTIGUOUS']:
                 frame_to_show = np.ascontiguousarray(frame_to_show)
                 
             qt_image = QImage(frame_to_show.data, w, h, bytes_per_line, QImage.Format_RGB888)
+            
+            # Create pixmap and scale
             pixmap = QPixmap.fromImage(qt_image)
             
             label_w = self.camera_label.width()
@@ -231,8 +225,10 @@ class RegistrationPage(QWidget):
             
             if label_w > 50 and label_h > 50:
                 scaled_pixmap = pixmap.scaled(
-                    label_w, label_h,
-                    Qt.KeepAspectRatio, Qt.SmoothTransformation
+                    label_w, 
+                    label_h, 
+                    Qt.KeepAspectRatio, 
+                    Qt.SmoothTransformation
                 )
                 self.camera_label.setPixmap(scaled_pixmap)
             else:
