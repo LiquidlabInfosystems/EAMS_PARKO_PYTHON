@@ -411,6 +411,10 @@ class AttendanceKioskGUI(QMainWindow):
         if self.camera_thread:
             self.camera_thread.stop()
 
+        # Stop registration page threads
+        if hasattr(self, 'registration_page'):
+            self.registration_page.stop()
+
         # ★★★ STOP API CLIENT GRACEFULLY ★★★
         if hasattr(self, 'api_client') and self.api_client:
             print("Stopping API client...")

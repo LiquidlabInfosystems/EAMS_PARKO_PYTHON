@@ -6,11 +6,47 @@ Handles face registration with capture, validation, and progress tracking
 
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
                                QFrame, QProgressBar, QMessageBox, QSizePolicy)
-from PySide6.QtCore import Qt, Signal, QTimer
+from PySide6.QtCore import Qt, Signal, QTimer, QThread, Slot
 from PySide6.QtGui import QImage, QPixmap
 import numpy as np
 import cv2
+import time
 from PySide6.QtWidgets import QApplication
+
+# ── Face Detection Thread for UI Overlay (Lag-free) ──────────────────────────
+class FaceDetectionThread(QThread):
+    faces_detected = Signal(list)
+
+    def __init__(self, face_recognizer):
+        super().__init__()
+        self.face_recognizer = face_recognizer
+        self.next_frame = None
+        self._running = True
+
+    def set_frame(self, frame):
+        """Update the next frame to process"""
+        self.next_frame = frame
+
+    def run(self):
+        while self._running:
+            if self.next_frame is not None:
+                # Take a copy and clear next_frame to avoid redundant processing
+                frame = self.next_frame
+                self.next_frame = None
+                
+                try:
+                    # Only detect, don't recognize (faster)
+                    faces = self.face_recognizer.detect_faces(frame)
+                    self.faces_detected.emit(faces)
+                except Exception as e:
+                    print(f"Detection thread error: {e}")
+            
+            # Control processing frequency to save CPU
+            self.msleep(100) # ~10 FPS is plenty for a UI overlay
+
+    def stop(self):
+        self._running = False
+        self.wait()
 
 # ── Screen-relative scaling helpers ──────────────────────────────────────────
 def _scr():
@@ -50,6 +86,12 @@ class RegistrationPage(QWidget):
         self.captured_faces = []
         self.current_registration_step = 0
         self.current_frame = None
+        
+        # UI Face detection (rectangle)
+        self.last_detected_faces = []
+        self.detection_thread = FaceDetectionThread(self.face_recognizer)
+        self.detection_thread.faces_detected.connect(self.on_faces_detected)
+        self.detection_thread.start()
         
         # Registration steps - 10 SAMPLES (plain text icons for compatibility)
         self.registration_steps = [
@@ -194,9 +236,18 @@ class RegistrationPage(QWidget):
         # Ensure camera label is visible and ready
         self.camera_label.setVisible(True)
     
+    @Slot(list)
+    def on_faces_detected(self, faces):
+        """Update last detected faces for drawing"""
+        self.last_detected_faces = faces
+
     def set_current_frame(self, frame_rgb):
         """Update current frame for processing"""
         self.current_frame = frame_rgb.copy()
+        
+        # Also send to detection thread if in registration mode
+        if self.registration_mode:
+            self.detection_thread.set_frame(self.current_frame)
     
     def display_camera_feed(self, frame_rgb):
         """Display current camera frame with proper scaling and format"""
@@ -204,9 +255,16 @@ class RegistrationPage(QWidget):
             return
             
         try:
-            # Replicate main app's display logic: Convert/Copy frame
             # Channel swap (RGB <-> BGR) to match QImage.Format_RGB888 expectations
             frame_to_show = frame_rgb[:, :, ::-1].copy()
+            
+            # Draw face rectangles if available
+            if self.registration_mode and self.last_detected_faces:
+                for face in self.last_detected_faces:
+                    if 'bbox' in face:
+                        x, y, w, h = [int(v) for v in face['bbox']]
+                        # Using #00ff88 (RGB: 0, 255, 136) -> BGR: 136, 255, 0
+                        cv2.rectangle(frame_to_show, (x, y), (x + w, y + h), (136, 255, 0), 2)
             
             h, w, ch = frame_to_show.shape
             bytes_per_line = 3 * w
@@ -349,6 +407,7 @@ class RegistrationPage(QWidget):
         self.registration_person_employee_id = None
         self.captured_faces = []
         self.current_registration_step = 0
+        self.last_detected_faces = []
         
         self.capture_btn.setEnabled(True)
         
@@ -358,3 +417,8 @@ class RegistrationPage(QWidget):
         self.feedback_label.setVisible(False)
         self.camera_label.setVisible(False)
         self.reg_button_frame.setVisible(False)
+
+    def stop(self):
+        """Clean up resources"""
+        if hasattr(self, 'detection_thread'):
+            self.detection_thread.stop()
