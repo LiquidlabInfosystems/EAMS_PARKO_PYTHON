@@ -303,7 +303,6 @@ class AttendanceKioskGUI(QMainWindow):
         self.attendance_screen.event_in_progress = False
 
         # Restore main UI labels
-        self.attendance_screen.title_label.setVisible(True)
         self.attendance_screen.status_label.setVisible(True)
         self.attendance_screen.instruction_label.setVisible(False)
         self.attendance_screen.feedback_label.setVisible(False)
@@ -379,7 +378,6 @@ class AttendanceKioskGUI(QMainWindow):
         VKLineEdit._hide_keyboard()
 
         self.attendance_screen.registration_mode = True
-        self.attendance_screen.title_label.setVisible(False)
         self.attendance_screen.status_label.setVisible(False)
         self.attendance_screen.instruction_label.setVisible(False)
         self.attendance_screen.feedback_label.setVisible(False)
