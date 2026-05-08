@@ -328,14 +328,41 @@ class AdminControlPage(QWidget):
 
     def rename_person(self):
         persons = self.get_all_persons()
+
+        dark_style = """
+            QMessageBox {
+                background-color: #2b2b2b;
+            }
+            QLabel {
+                color: white;
+                font-size: 14px;
+            }
+            QPushButton {
+                color: white;
+                background-color: #444;
+                padding: 5px 12px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #555;
+            }
+        """
+
         if not persons:
-            QMessageBox.information(self, "Rename", "No faces registered yet.")
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Rename")
+            msg.setText("No faces registered yet.")
+            msg.setIcon(QMessageBox.Information)
+            msg.setStyleSheet(dark_style)
+            msg.exec()
             return
 
         # Use window() so the dialog fills the full screen
         dlg = PersonSelectDialog(self.window(), "Select Person to Rename", persons)
+
         if dlg.exec() != QDialog.Accepted or not dlg.selected_person:
             return
+
         person = dlg.selected_person
 
         name_dlg = TextInputDialog(
@@ -344,47 +371,108 @@ class AdminControlPage(QWidget):
             label=f"Rename '{person}' to:",
             placeholder="New name"
         )
+
         if name_dlg.exec() != QDialog.Accepted:
             return
+
         new_name = name_dlg.get_text().strip()
+
         if not new_name or new_name == person:
             return
 
         VKLineEdit._hide_keyboard()
 
         if new_name in persons:
-            QMessageBox.warning(self, "Failed", f"'{new_name}' already exists.")
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Failed")
+            msg.setText(f"'{new_name}' already exists.")
+            msg.setIcon(QMessageBox.Warning)
+            msg.setStyleSheet(dark_style)
+            msg.exec()
             return
 
         try:
             data = self.face_recognizer.known_faces.pop(person)
             self.face_recognizer.known_faces[new_name] = data
             self.face_recognizer.save_database()
-            QMessageBox.information(self, "Success", f"Renamed '{person}' → '{new_name}'")
+
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Success")
+            msg.setText(f"Renamed '{person}' → '{new_name}'")
+            msg.setIcon(QMessageBox.Information)
+            msg.setStyleSheet(dark_style)
+            msg.exec()
+
         except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Error")
+            msg.setText(str(e))
+            msg.setIcon(QMessageBox.Critical)
+            msg.setStyleSheet(dark_style)
+            msg.exec()
 
     def delete_person(self):
         persons = self.get_all_persons()
+
+        dark_style = """
+            QMessageBox {
+                background-color: #2b2b2b;
+            }
+            QLabel {
+                color: white;
+                font-size: 14px;
+            }
+            QPushButton {
+                color: white;
+                background-color: #444;
+                padding: 5px 12px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #555;
+            }
+        """
+
         if not persons:
-            QMessageBox.information(self, "Delete", "No faces registered yet.")
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Delete")
+            msg.setText("No faces registered yet.")
+            msg.setIcon(QMessageBox.Information)
+            msg.setStyleSheet(dark_style)
+            msg.exec()
             return
 
         dlg = PersonSelectDialog(self.window(), "Select Person to Delete", persons)
+
         if dlg.exec() != QDialog.Accepted or not dlg.selected_person:
             return
+
         person = dlg.selected_person
 
-        reply = QMessageBox.question(
-            self, "Confirm", f"Delete '{person}'?\nThis cannot be undone.",
-            QMessageBox.Yes | QMessageBox.No
-        )
-        if reply == QMessageBox.Yes:
-            if self.face_recognizer.delete_person(person):
-                QMessageBox.information(self, "Deleted", f"'{person}' removed.")
-            else:
-                QMessageBox.critical(self, "Failed", f"Could not delete '{person}'.")
+        confirm_box = QMessageBox(self)
+        confirm_box.setWindowTitle("Confirm")
+        confirm_box.setText(f"Delete '{person}'?\nThis cannot be undone.")
+        confirm_box.setIcon(QMessageBox.Warning)
+        confirm_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        confirm_box.setStyleSheet(dark_style)
 
+        reply = confirm_box.exec()
+
+        if reply == QMessageBox.Yes:
+            result_box = QMessageBox(self)
+            result_box.setStyleSheet(dark_style)
+
+            if self.face_recognizer.delete_person(person):
+                result_box.setWindowTitle("Deleted")
+                result_box.setText(f"'{person}' removed.")
+                result_box.setIcon(QMessageBox.Information)
+            else:
+                result_box.setWindowTitle("Failed")
+                result_box.setText(f"Could not delete '{person}'.")
+                result_box.setIcon(QMessageBox.Critical)
+
+            result_box.exec()
+            
     def update_employee_id(self):
         persons = self.get_all_persons()
         if not persons:
