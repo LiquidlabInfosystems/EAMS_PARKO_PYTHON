@@ -14,6 +14,7 @@ class AttendanceScreen(QWidget):
     """Screen for marking attendance with live camera and action buttons"""
     
     # Signals for actions
+    admin_requested = Signal()
     action_clicked = Signal(str) # e.g., "timeIn", "timeOut"
     
     def __init__(self, parent=None):
@@ -24,6 +25,23 @@ class AttendanceScreen(QWidget):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(5)
+        
+        # Admin button row
+        top_row = QHBoxLayout()
+        top_row.addStretch()
+        self.admin_btn = QPushButton("⚙️")
+        self.admin_btn.setFixedSize(50, 50)
+        self.admin_btn.clicked.connect(self.admin_requested.emit)
+        self.admin_btn.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(255, 255, 255, 0.1);
+                border: 1px solid #4d4d4d;
+                border-radius: 25px;
+                font-size: 20px;
+            }
+        """)
+        top_row.addWidget(self.admin_btn)
+        main_layout.addLayout(top_row)
         
         # Camera display
         self.camera_label = QLabel()

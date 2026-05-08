@@ -24,6 +24,7 @@ THEME = getattr(config, 'THEME', {
 
 class WelcomeScreen(QWidget):
     """Employee Attendance Management System Welcome Screen with professional theme"""
+    admin_requested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -50,6 +51,16 @@ class WelcomeScreen(QWidget):
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(40, 40, 40, 40)
         self.main_layout.setSpacing(0)
+        
+        # Top bar for Admin button
+        top_bar = QHBoxLayout()
+        top_bar.addStretch()
+        self.admin_btn = QPushButton("⚙️")
+        self.admin_btn.setObjectName("adminBtn")
+        self.admin_btn.setFixedSize(50, 50)
+        self.admin_btn.clicked.connect(self.admin_requested.emit)
+        top_bar.addWidget(self.admin_btn)
+        self.main_layout.addLayout(top_bar)
         
         clock_layout = QHBoxLayout()
         clock_layout.addStretch()
@@ -124,6 +135,19 @@ class WelcomeScreen(QWidget):
         self.title_label.setStyleSheet(f"color: {THEME['text_primary']}; font-size: {pf(32)}px; font-weight: bold; padding: {ph(5)}px; background: transparent;")
         self.instruction_label.setStyleSheet(f"color: {THEME['accent_secondary']}; font-size: {pf(14)}px; font-weight: 400; padding: {ph(8)}px {pw(15)}px; background: rgba(74, 144, 226, 0.1); border: 1px solid rgba(74, 144, 226, 0.3); border-radius: {pw(8)}px;")
         self.status_label.setStyleSheet(f"color: {THEME['text_secondary']}; font-size: {pf(18)}px; font-style: italic; padding: {ph(10)}px; background: transparent;")
+        self.admin_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: rgba(30, 58, 95, 0.1);
+                border: 1px solid rgba(30, 58, 95, 0.2);
+                border-radius: 25px;
+                font-size: 24px;
+                color: {THEME['text_secondary']};
+            }}
+            QPushButton:hover {{
+                background-color: rgba(30, 58, 95, 0.2);
+                border-color: {THEME['accent_secondary']};
+            }}
+        """)
 
     def _update_animation(self):
         self._update_clock()
