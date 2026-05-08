@@ -169,6 +169,9 @@ class FaceListScreen(QWidget):
         """Reload the face list from recognizer database"""
         self.search_input.clear()
         self._build_list()
+        # Auto-focus the search bar so the virtual keyboard appears
+        self.search_input.setFocus()
+        VKLineEdit._show_keyboard()
 
     def _build_list(self, filter_text=""):
         """Build the face list cards"""

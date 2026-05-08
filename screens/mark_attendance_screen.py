@@ -467,42 +467,10 @@ class MarkAttendanceScreen(QWidget):
             BLACK_RGB = (0, 0, 0)
             CYAN_RGB = (0, 255, 255)
 
-            # ★★★ IF FACE IS CONFIRMED, DISPLAY FROZEN FRAME ★★★
+            # ★★★ IF FACE IS CONFIRMED, HOLD FROZEN FRAME ★★★
             if self.face_confirmed and self.confirmed_frame is not None:
-                detected, recognized = self.face_recognizer.process_frame(frame_rgb, preprocess=True)
-                has_face = bool(detected or recognized)
-
-                if not has_face:
-                    if self.no_face_timeout is None:
-                        self.no_face_timeout = QTimer()
-                        self.no_face_timeout.setSingleShot(True)
-                        self.no_face_timeout.timeout.connect(self._reset_face_confirmation)
-                        self.no_face_timeout.start(int(config.IDENTITY_LOCK_TIME * 1000))
-                else:
-                    if self.no_face_timeout:
-                        self.no_face_timeout.stop()
-                        self.no_face_timeout = None
-
-                    if recognized:
-                        current_person = recognized[0].get('name', 'Unknown')
-                        if current_person != self.confirmed_person_name and current_person != 'Unknown':
-                            print(f"👤 Different person detected: {current_person} (was: {self.confirmed_person_name})")
-                            self._reset_face_confirmation()
-                            self.processing = False
-                            return
-
-                if not self.button_frame.isVisible():
-                    self.button_frame.setVisible(True)
-
-                live_frame = frame_rgb.copy()
-                if self.confirmed_person_bbox:
-                    x, y, w, h = self.confirmed_person_bbox
-                    draw_box_rgb(live_frame, x, y, x + w, y + h, CYAN_RGB, 6)
-                banner_height = 80
-                draw_filled_box_rgb(live_frame, 0, 0, live_frame.shape[1], banner_height, (0, 180, 120))
-                name_text = f" {self.confirmed_person_name}"
-                put_text_rgb(live_frame, name_text, 30, 50, (255, 255, 255), 2.0, 4)
-                self.display_frame_on_label(live_frame)
+                # Just keep showing the frozen snapshot — no live processing
+                self.display_frame_on_label(self.confirmed_frame)
                 self.processing = False
                 return
             # ★★★ END FROZEN FRAME LOGIC ★★★
@@ -650,6 +618,14 @@ class MarkAttendanceScreen(QWidget):
                                         if not hasattr(self, '_buttons_shown_for_current_confirmation') or self._buttons_shown_for_current_confirmation != name:
                                             self._buttons_shown_for_current_confirmation = name
                                             self.update_button_visibility(name)
+
+                                    # ★ Auto-reset after IDENTITY_LOCK_TIME ★
+                                    if self.no_face_timeout:
+                                        self.no_face_timeout.stop()
+                                    self.no_face_timeout = QTimer()
+                                    self.no_face_timeout.setSingleShot(True)
+                                    self.no_face_timeout.timeout.connect(self._reset_face_confirmation)
+                                    self.no_face_timeout.start(int(config.IDENTITY_LOCK_TIME * 1000))
 
                                     self.display_frame_on_label(frozen)
                                     self.processing = False
