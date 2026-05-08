@@ -4,7 +4,7 @@ Welcome Screen Module - Employee Attendance Management System
 """
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QHBoxLayout
-from PySide6.QtCore import Qt, QTimer, Property, QDateTime
+from PySide6.QtCore import Qt, QTimer, Property, QDateTime, Signal
 from PySide6.QtGui import QPainter, QColor, QFont, QPen, QBrush, QPixmap
 import os
 import math
