@@ -45,6 +45,18 @@ import subprocess
 
 import config
 
+THEME = {
+    "background_light": "#F0F4F8",
+    "background_medium": "#E8EDF2",
+    "accent_primary": "#1E3A5F",
+    "accent_secondary": "#4A90D9",
+    "text_primary": "#1E3A5F",
+    "text_secondary": "#5A7A9A",
+    "success": "#2ECC71",
+    "warning": "#F39C12",
+    "error": "#E74C3C",
+}
+
 # ── Screen-relative scaling helpers ──────────────────────────────────────────
 # Reference: 480 × 854  (portrait RPi 7" touchscreen)
 # pw(n) → scale a width-related pixel value
@@ -829,12 +841,29 @@ class AttendanceKioskGUI(QMainWindow):
         self.main_layout.setContentsMargins(10, 10, 10, 10)
         self.main_layout.setSpacing(5)
 
+        top_layout = QHBoxLayout()
+        top_layout.setContentsMargins(0, 0, 0, 0)
+        
         self.title_label = QLabel("Employee Attendance Management System")
         self.title_label.setObjectName("title")
         self.title_label.setAlignment(Qt.AlignCenter)
         self.title_label.setWordWrap(True)
         self.title_label.setMinimumWidth(10)
-        self.main_layout.addWidget(self.title_label)
+        
+        self.admin_icon_btn = QPushButton("⚙️")
+        self.admin_icon_btn.setObjectName("adminIcon")
+        self.admin_icon_btn.clicked.connect(self.show_admin_page)
+        self.admin_icon_btn.setCursor(Qt.PointingHandCursor)
+        self.admin_icon_btn.setFixedSize(40, 40)
+        
+        spacer = QWidget()
+        spacer.setFixedWidth(40)
+        
+        top_layout.addWidget(spacer)
+        top_layout.addWidget(self.title_label, stretch=1)
+        top_layout.addWidget(self.admin_icon_btn)
+        
+        self.main_layout.addLayout(top_layout)
 
         self.status_label = QLabel("Starting...")
         self.status_label.setObjectName("status")
@@ -885,23 +914,7 @@ class AttendanceKioskGUI(QMainWindow):
         # Add display stack to camera page
         camera_page_layout.addWidget(self.display_stack, stretch=1)
         
-        # Add admin button in bottom right corner
-        admin_button_container = QFrame()
-        admin_button_layout = QHBoxLayout(admin_button_container)
-        admin_button_layout.setContentsMargins(0, 0, 10, 10)
-        admin_button_layout.addStretch()
-        
-        self.admin_icon_btn = QPushButton("⚙️ ADMIN")
-        self.admin_icon_btn.setObjectName("adminIcon")
-        self.admin_icon_btn.clicked.connect(self.show_admin_page)
-        self.admin_icon_btn.setCursor(Qt.PointingHandCursor)
-        self.admin_icon_btn.setMinimumHeight(40)
-        self.admin_icon_btn.setMaximumWidth(100)
-        admin_button_layout.addWidget(self.admin_icon_btn)
-        
-        admin_button_container.setStyleSheet("background: transparent; border: none;")
-        camera_page_layout.addWidget(admin_button_container)
-        
+        # Removed admin_button_container since it is moved to top_layout
         # Create pages stack for camera and admin pages
         self.pages_stack = QStackedWidget()
         
@@ -971,11 +984,17 @@ class AttendanceKioskGUI(QMainWindow):
             self.job_in_btn, self.job_out_btn
         ]
 
-        self.main_layout.addWidget(self.button_frame)
+        self.button_scroll = QScrollArea()
+        self.button_scroll.setObjectName("buttonScroll")
+        self.button_scroll.setWidgetResizable(True)
+        self.button_scroll.setWidget(self.button_frame)
+        self.button_scroll.setStyleSheet("QScrollArea { border: none; background: transparent; } QScrollArea > QWidget > QWidget { background: transparent; }")
+        
+        self.main_layout.addWidget(self.button_scroll)
 
 
         # Initially hide buttons
-        self.button_frame.setVisible(False)
+        self.button_scroll.setVisible(False)
         self.update_styles()
 
         self.showFullScreen()
@@ -1008,35 +1027,36 @@ class AttendanceKioskGUI(QMainWindow):
         def _ph(n): return max(1, int(n * h / 854))
 
         self.setStyleSheet(f"""
-            QMainWindow {{ background-color: #1a1a1a; }}
-            QLabel#title {{ color: #ffffff; font-size: {_pf(16)}px; font-weight: bold; padding: {_ph(5)}px; }}
-            QLabel#status {{ color: #00ff88; font-size: {_pf(13)}px; padding: {_ph(3)}px; }}
-            QLabel#instruction {{ color: #00ff88; font-size: {_pf(15)}px; font-weight: bold; padding: {_ph(5)}px; }}
-            QLabel#feedback {{ color: #ffffff; font-size: {_pf(15)}px; font-weight: bold; padding: {_ph(5)}px; }}
-            QLabel#camera {{ background-color: #000000; border: 3px solid #00ff88; border-radius: {_pw(10)}px; }}
+            QMainWindow {{ background-color: {THEME['background_light']}; }}
+            QLabel#title {{ color: {THEME['accent_primary']}; font-size: {_pf(16)}px; font-weight: bold; padding: {_ph(5)}px; }}
+            QLabel#status {{ color: {THEME['text_secondary']}; font-size: {_pf(13)}px; padding: {_ph(3)}px; }}
+            QLabel#instruction {{ color: {THEME['accent_secondary']}; font-size: {_pf(15)}px; font-weight: bold; padding: {_ph(5)}px; }}
+            QLabel#feedback {{ color: {THEME['text_primary']}; font-size: {_pf(15)}px; font-weight: bold; padding: {_ph(5)}px; }}
+            QLabel#camera {{ background-color: #000000; border: 3px solid {THEME['accent_secondary']}; border-radius: {_pw(10)}px; }}
             QPushButton {{
-                background-color: #2d2d2d; color: #ffffff; border: 2px solid #4d4d4d;
+                background-color: #ffffff; color: {THEME['text_primary']}; border: 2px solid {THEME['background_medium']};
                 border-radius: {_pw(8)}px; font-size: {_pf(14)}px; font-weight: bold; padding: {_ph(8)}px; min-height: {_ph(40)}px;
             }}
-            QPushButton:hover {{ background-color: #3d3d3d; border-color: #00ff88; }}
-            QPushButton:pressed {{ background-color: #1d1d1d; }}
-            QPushButton#timeIn {{ border-color: #4a90e2; }}
-            QPushButton#timeOut {{ border-color: #e24a4a; }}
-            QPushButton#breakIn {{ border-color: #f5a623; }}
-            QPushButton#breakOut {{ border-color: #ff8c00; }}
-            QPushButton#jobIn {{ border-color: #bd10e0; }}
-            QPushButton#jobOut {{ border-color: #9b10c0; }}
-            QPushButton#addFace {{ border-color: #50c878; }}
-            QPushButton#capture {{ background-color: #4a90e2; border-color: #6ab0ff; font-size: {_pf(18)}px; }}
-            QPushButton#cancelReg {{ background-color: #cc3333; border-color: #ff4444; font-size: {_pf(18)}px; }}
-            QPushButton#adminIcon {{ background-color: #ff8c00; border-color: #ffaa00; font-size: {_pf(12)}px; }}
-            QPushButton#adminIcon:hover {{ background-color: #ffaa00; }}
-            QFrame#buttonContainer {{ background-color: #0d0d0d; border-top: 3px solid #00ff88; padding: {_ph(10)}px; }}
+            QPushButton:hover {{ background-color: {THEME['background_medium']}; border-color: {THEME['accent_secondary']}; }}
+            QPushButton:pressed {{ background-color: #d0d8e0; }}
+            QPushButton#timeIn {{ border-color: {THEME['success']}; }}
+            QPushButton#timeOut {{ border-color: {THEME['error']}; }}
+            QPushButton#breakIn {{ border-color: {THEME['warning']}; }}
+            QPushButton#breakOut {{ border-color: {THEME['warning']}; }}
+            QPushButton#jobIn {{ border-color: {THEME['accent_secondary']}; }}
+            QPushButton#jobOut {{ border-color: {THEME['accent_primary']}; }}
+            QPushButton#addFace {{ border-color: {THEME['success']}; }}
+            QPushButton#capture {{ background-color: {THEME['accent_secondary']}; color: white; border-color: {THEME['accent_secondary']}; font-size: {_pf(18)}px; }}
+            QPushButton#cancelReg {{ background-color: {THEME['error']}; color: white; border-color: {THEME['error']}; font-size: {_pf(18)}px; }}
+            QPushButton#adminIcon {{ background-color: {THEME['background_medium']}; border: none; font-size: {_pf(16)}px; border-radius: {_pw(20)}px; }}
+            QPushButton#adminIcon:hover {{ background-color: #d0d8e0; }}
+            QFrame#buttonContainer {{ background-color: transparent; border-top: 2px solid {THEME['background_medium']}; padding: {_ph(10)}px; }}
             QProgressBar {{
-                border: 2px solid #4a90e2; border-radius: {_pw(5)}px; text-align: center;
-                color: #ffffff; font-weight: bold; min-height: {_ph(30)}px; font-size: {_pf(16)}px;
+                border: 2px solid {THEME['accent_secondary']}; border-radius: {_pw(5)}px; text-align: center;
+                color: {THEME['text_primary']}; font-weight: bold; min-height: {_ph(30)}px; font-size: {_pf(16)}px;
             }}
-            QProgressBar::chunk {{ background-color: #00ff88; }}
+            QProgressBar::chunk {{ background-color: {THEME['accent_secondary']}; }}
+            QScrollArea#buttonScroll {{ border: none; background: transparent; }}
         """)
 
         # Adjust main layout spacing dynamically
@@ -1084,12 +1104,24 @@ class AttendanceKioskGUI(QMainWindow):
         # Hide keyboard after password is accepted
         VKLineEdit._hide_keyboard()
         
-        # Password validated, show admin page
+        # Password validated, pause camera and show admin page
+        if self.camera_thread and self.camera_thread.isRunning():
+            self.camera_thread.stop()
+            self.camera_thread.wait()
+        if self.process_timer.isActive():
+            self.process_timer.stop()
+            
         self.pages_stack.setCurrentIndex(1)
 
     def show_camera_page(self):
-        """Show the camera page"""
+        """Show the camera page and resume detection"""
         self.pages_stack.setCurrentIndex(0)
+        
+        # Resume camera and processing
+        if not self.camera_thread or not self.camera_thread.isRunning():
+            self.init_camera()
+        if not self.process_timer.isActive():
+            self.process_timer.start(1000 // config.CAMERA_FPS)
 
     def start_registration_from_admin(self):
         """Start registration when triggered from admin page"""
@@ -1258,7 +1290,7 @@ class AttendanceKioskGUI(QMainWindow):
         """Switch to welcome screen when no face detected for 3 seconds"""
         print("📺 No face detected - showing welcome screen")
         self.display_stack.setCurrentIndex(0)  # Switch to welcome
-        self.button_frame.setVisible(False)  # Hide buttons
+        self.button_scroll.setVisible(False)  # Hide buttons
         self.no_face_timeout = None
         # Resume animation
         if hasattr(self, 'welcome_widget'):
@@ -1442,7 +1474,7 @@ class AttendanceKioskGUI(QMainWindow):
                         print("👤 Face detected - showing camera view (awaiting confirmation)")
                         self.display_stack.setCurrentIndex(1)
                         # ★★★ BUTTONS STAY HIDDEN until face is confirmed ★★★
-                        self.button_frame.setVisible(False)
+                        self.button_scroll.setVisible(False)
                         # Pause animation to save CPU for camera
                         if hasattr(self, 'welcome_widget'):
                             self.welcome_widget.stop_animation()
@@ -1610,14 +1642,14 @@ class AttendanceKioskGUI(QMainWindow):
                                             "warning", 5000
                                         )
                                         # Keep buttons hidden
-                                        self.button_frame.setVisible(False)
+                                        self.button_scroll.setVisible(False)
                                         
                                         # ★★★ AUTO-RESET to welcome screen after notification ★★★
                                         # Wait for notification to display, then reset
                                         QTimer.singleShot(4000, self._reset_face_confirmation)
                                     else:
                                         # Not blocked - show buttons
-                                        self.button_frame.setVisible(True)
+                                        self.button_scroll.setVisible(True)
                                         self.update_button_visibility(name)
                                     
                                     # Display frozen frame immediately
@@ -1682,7 +1714,7 @@ class AttendanceKioskGUI(QMainWindow):
                                 self.unknown_person_id = None
                                 self.update_button_visibility(None)
                                 # Show button frame so "ADD NEW FACE" is accessible for unknown persons
-                                self.button_frame.setVisible(True)
+                                self.button_scroll.setVisible(True)
 
                                 self.status_label.setText("⚠️ Unknown Person - Monitoring")
                                 print(f"⚠️ Unknown person detected, timer started")
@@ -1740,7 +1772,7 @@ class AttendanceKioskGUI(QMainWindow):
                             # MQTT Features disabled - just show status and "ADD NEW FACE" button
                             self.status_label.setText("⚠️ Unknown Person")
                             self.update_button_visibility(None)
-                            self.button_frame.setVisible(True)
+                            self.button_scroll.setVisible(True)
 
 
 
