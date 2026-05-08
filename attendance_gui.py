@@ -20,7 +20,7 @@ import sys
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                                QHBoxLayout, QLabel, QPushButton, QFrame, QInputDialog, 
                                QGridLayout, QMessageBox, QDialog, QProgressBar, QStackedWidget,
-                               QSizePolicy, QLineEdit, QScrollArea)
+                               QSizePolicy, QLineEdit, QScrollArea, QScroller)
 from PySide6.QtCore import Qt, QThread, Signal, Slot, QTimer, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QImage, QPixmap, QFont
 from picamera2 import Picamera2
@@ -993,6 +993,7 @@ class AttendanceKioskGUI(QMainWindow):
         self.button_scroll.setMinimumHeight(ph(220))
         self.button_scroll.setStyleSheet("QScrollArea { border: none; background: transparent; } QScrollArea > QWidget > QWidget { background: transparent; }")
         
+        QScroller.grabGesture(self.button_scroll.viewport(), QScroller.LeftMouseButtonGesture)
         self.main_layout.addWidget(self.button_scroll)
 
 
@@ -1107,6 +1108,9 @@ class AttendanceKioskGUI(QMainWindow):
         # Hide keyboard after password is accepted
         VKLineEdit._hide_keyboard()
         
+        # Hide action buttons
+        self.button_scroll.setVisible(False)
+        
         # Password validated, pause camera and show admin page
         if self.camera_thread and self.camera_thread.isRunning():
             self.camera_thread.stop()
@@ -1142,7 +1146,14 @@ class AttendanceKioskGUI(QMainWindow):
         self.instruction_label.setVisible(False)
         self.feedback_label.setVisible(False)
         
-        self.show_camera_page()
+        # Pause camera and return to admin page
+        if self.camera_thread and self.camera_thread.isRunning():
+            self.camera_thread.stop()
+            self.camera_thread.wait()
+        if self.process_timer.isActive():
+            self.process_timer.stop()
+            
+        self.pages_stack.setCurrentIndex(1)
         # Reset liveness and state
         if self.face_recognizer.liveness_detector:
             self.face_recognizer.liveness_detector.reset()
@@ -1847,6 +1858,12 @@ class AttendanceKioskGUI(QMainWindow):
         """Start registration — password is validated via admin panel."""
         # Pause background face detection processing
         self.event_in_progress = True
+
+        # Ensure camera is running for registration
+        if not self.camera_thread or not self.camera_thread.isRunning():
+            self.init_camera()
+        if not self.process_timer.isActive():
+            self.process_timer.start(1000 // config.CAMERA_FPS)
 
         # ── Step 1: Collect name ─────────────────────────────────────────────
         name_dlg = TextInputDialog(self, title="Enter Person's Name",

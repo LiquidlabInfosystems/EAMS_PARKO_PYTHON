@@ -10,7 +10,7 @@ Provides interface for:
 
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
                                QFrame, QListWidget, QListWidgetItem, QInputDialog, 
-                               QMessageBox, QDialog, QLineEdit, QComboBox, QScrollArea, QApplication)
+                               QMessageBox, QDialog, QLineEdit, QComboBox, QScrollArea, QApplication, QScroller)
 from PySide6.QtCore import Qt, Signal, QSize, QTimer
 from PySide6.QtGui import QFont, QIcon
 import subprocess
@@ -243,6 +243,8 @@ class AdminControlPage(QWidget):
         scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         
+        QScroller.grabGesture(scroll_area.viewport(), QScroller.LeftMouseButtonGesture)
+        
         scroll_content = QWidget()
         scroll_layout = QVBoxLayout(scroll_content)
         scroll_layout.setContentsMargins(0, 0, 0, 0)
@@ -325,20 +327,20 @@ class AdminControlPage(QWidget):
         if not persons:
             QMessageBox.information(self, "List Faces", "No faces registered yet.")
             return
-        
-        self.list_widget.clear()
+            
+        display_items = []
         for person in sorted(persons):
             employee_id = self.face_recognizer.get_employee_id(person)
             if employee_id:
                 item_text = f"{person} (ID: {employee_id})"
             else:
                 item_text = f"{person}"
+            display_items.append(item_text)
             
-            item = QListWidgetItem(item_text)
-            self.list_widget.addItem(item)
-        
-        self.list_widget.setVisible(True)
-        self.list_widget.scrollToTop()
+        dialog = SearchableListDialog("All Registered Faces", "Currently Registered Faces:", display_items, self)
+        dialog.confirm_btn.setVisible(False)
+        dialog.cancel_btn.setText("Close")
+        dialog.exec()
     
     def rename_person(self):
         """Rename a registered person"""
