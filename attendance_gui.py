@@ -701,15 +701,16 @@ class AttendanceKioskGUI(QMainWindow):
             if config.API_ENABLED:
                 try:
                     self.api_client = AttendanceAPIClient(
-                        server_ip=config.API_SERVER_IP,
-                        server_port=config.API_SERVER_PORT,
+                        server_ip=getattr(config, 'API_SERVER_IP', ''),
+                        server_port=getattr(config, 'API_SERVER_PORT', 3008),
                         endpoint=config.API_ENDPOINT,
                         timeout=config.API_TIMEOUT,
                         health_endpoint=config.API_HEALTH_ENDPOINT,
                         health_check_interval=config.API_HEALTH_CHECK_INTERVAL,
                         storage_file=config.API_STORAGE_FILE
                     )
-                    print(f"✓ API Client enabled: {config.API_SERVER_IP}:{config.API_SERVER_PORT}")
+                    server_display = getattr(config, 'API_SERVER_DOMAIN', '') if getattr(config, 'SERVER_AS_DOMAIN', False) else f"{getattr(config, 'API_SERVER_IP', '')}:{getattr(config, 'API_SERVER_PORT', 3008)}"
+                    print(f"✓ API Client enabled: {server_display}")
                 except Exception as e:
                     print(f"⚠️ API Client initialization failed: {e}")
                     self.api_client = None
@@ -831,7 +832,8 @@ class AttendanceKioskGUI(QMainWindow):
     def init_ui(self):
         """Initialize UI"""
         liveness_status = "🛡️ Blink Detection" if config.ENABLE_LIVENESS else "⚠️ Liveness Disabled"
-        api_status = f"📡 API: {config.API_SERVER_IP}" if config.API_ENABLED else "○ API Disabled"
+        server_display = getattr(config, 'API_SERVER_DOMAIN', '') if getattr(config, 'SERVER_AS_DOMAIN', False) else getattr(config, 'API_SERVER_IP', '')
+        api_status = f"📡 API: {server_display}" if config.API_ENABLED else "○ API Disabled"
 
         self.setWindowTitle(f"Employee Attendance System - {liveness_status} | {api_status}")
 

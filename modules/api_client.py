@@ -42,10 +42,10 @@ class AttendanceAPIClient:
             timeout: Request timeout in seconds (defaults to config.API_TIMEOUT)
         """
         # Use config values as defaults
-        self.server_ip = server_ip if server_ip is not None else config.API_SERVER_IP
-        self.server_port = server_port if server_port is not None else config.API_SERVER_PORT
-        self.endpoint = endpoint if endpoint is not None else config.API_ENDPOINT
-        self.timeout = timeout if timeout is not None else config.API_TIMEOUT
+        self.server_ip = server_ip if server_ip is not None else getattr(config, 'API_SERVER_IP', "")
+        self.server_port = server_port if server_port is not None else getattr(config, 'API_SERVER_PORT', 3000)
+        self.endpoint = endpoint if endpoint is not None else getattr(config, 'API_ENDPOINT', '/api/attendance/record')
+        self.timeout = timeout if timeout is not None else getattr(config, 'API_TIMEOUT', 15)
         self.server_as_domain = config.SERVER_AS_DOMAIN
 
         # Health check endpoint
@@ -202,7 +202,10 @@ class AttendanceAPIClient:
         if timestamp is None:
             timestamp = int(datetime.now().timestamp())
         
-        status_url = f"http://{self.server_ip}:{self.server_port}/api/attendance/status"
+        if self.server_as_domain:
+            status_url = f"{self.server_domain}/api/attendance/status"
+        else:
+            status_url = f"http://{self.server_ip}:{self.server_port}/api/attendance/status"
         
         try:
             response = requests.get(
@@ -488,7 +491,10 @@ class AttendanceAPIClient:
         # ★★★ END TEMPORARY BYPASS ★★★
 
         # --- real implementation (re-enable when API is ready) ---
-        url = f"http://{self.server_ip}:{self.server_port}/api/validate_admin_password"
+        if self.server_as_domain:
+            url = f"{self.server_domain}/api/validate_admin_password"
+        else:
+            url = f"http://{self.server_ip}:{self.server_port}/api/validate_admin_password"
         try:
             response = requests.post(
                 url,
