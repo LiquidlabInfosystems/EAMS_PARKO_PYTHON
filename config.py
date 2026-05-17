@@ -13,7 +13,7 @@ API_SERVER_DOMAIN = "https://parko.in"
 SERVER_AS_DOMAIN = True  # If True, use domain (ignores port); if False, use IP with port
 ENABLE_MQTT_FEATURES=False
 
-API_SERVER_PORT = 3008
+API_SERVER_PORT = 8800
 API_ENDPOINT = "/api/attendance/record"  # ← API endpoint path
 API_TIMEOUT = 15  # Request timeout in seconds
 
