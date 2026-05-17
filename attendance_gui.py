@@ -2151,15 +2151,15 @@ class AttendanceKioskGUI(QMainWindow):
 
     def _rearrange_button_grid(self):
         """Dynamically arrange visible buttons in a grid: max 2 per row."""
+        # 0. Get visible buttons BEFORE clearing layout (since setParent(None) hides them)
+        visible_buttons = [btn for btn in self.all_action_buttons if not btn.isHidden()]
+        
         # 1. Clear layout
         while self.button_layout.count():
             item = self.button_layout.takeAt(0)
             # Just remove, don't delete widgets
             if item.widget():
                 item.widget().setParent(None)
-
-        # 2. Get visible buttons
-        visible_buttons = [btn for btn in self.all_action_buttons if not btn.isHidden()]
         
         # 3. Add back to grid
         num_visible = len(visible_buttons)
