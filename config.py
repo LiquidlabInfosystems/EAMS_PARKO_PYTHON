@@ -7,10 +7,10 @@ InsightFace Edition - Raspberry Pi 4
 API_ENABLED = True  # Set to False to disable API sending
 
 # Server configuration
-API_SERVER_IP = "3.109.106.154"
+# API_SERVER_IP = "3.109.106.154"
 API_SERVER_DOMAIN = "https://parko.in"
 # API_SERVER_IP = "192.168.1.8"
-SERVER_AS_DOMAIN = False  # If True, use domain (ignores port); if False, use IP with port
+SERVER_AS_DOMAIN = True  # If True, use domain (ignores port); if False, use IP with port
 ENABLE_MQTT_FEATURES=False
 
 API_SERVER_PORT = 3008
@@ -57,7 +57,7 @@ IDENTITY_LOCK_TIME = 1.0  # Seconds to lock identity after recognition (anti-fli
 
 
 # MQTT Settings
-MQTT_ENABLED = True
+MQTT_ENABLED = False
 MQTT_BROKER_HOST = "https://parko.in"
 # MQTT_BROKER_HOST = "192.168.1.18"
 MQTT_BROKER_PORT = 1869

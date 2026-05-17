@@ -2157,7 +2157,7 @@ class AttendanceKioskGUI(QMainWindow):
                 item.widget().setParent(None)
 
         # 2. Get visible buttons
-        visible_buttons = [btn for btn in self.all_action_buttons if btn.isVisible()]
+        visible_buttons = [btn for btn in self.all_action_buttons if not btn.isHidden()]
         
         # 3. Add back to grid
         num_visible = len(visible_buttons)
