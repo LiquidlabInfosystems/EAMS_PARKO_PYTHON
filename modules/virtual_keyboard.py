@@ -266,6 +266,8 @@ class VirtualKeyboard(QWidget):
             row_layout.setSpacing(4)
 
             for key in row:
+                if not key:  # Skip empty keys
+                    continue
                 btn = QPushButton(key)
                 btn.setFocusPolicy(Qt.NoFocus)
                 btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -437,8 +439,8 @@ class VirtualKeyboard(QWidget):
         pw = parent.width()
         ph = parent.height()
 
-        # Bottom margin to prevent clipping on touchscreens
-        bottom_margin = max(6, int(ph * 0.008))
+        # Large bottom margin to prevent clipping on 7" touchscreen
+        bottom_margin = max(20, int(ph * 0.04))
 
         if self._mode == MODE_NUMERIC:
             # Compact numpad: ~25% of screen
