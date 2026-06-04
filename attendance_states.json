@@ -1,3 +1,189 @@
-{
-  
-}
+[
+  {
+    "name": "Muhammad Haseeb",
+    "attendance_state": "timed_out",
+    "on_job": false,
+    "last_time_in": null,
+    "last_time_out": null,
+    "last_break_start": null,
+    "last_break_end": null,
+    "last_job_start": null,
+    "last_job_end": null
+  },
+  {
+    "name": "Reshma Ramesh",
+    "attendance_state": "timed_out",
+    "on_job": false,
+    "last_time_in": null,
+    "last_time_out": null,
+    "last_break_start": null,
+    "last_break_end": null,
+    "last_job_start": null,
+    "last_job_end": null
+  },
+  {
+    "name": "Arya.C B",
+    "attendance_state": "timed_out",
+    "on_job": false,
+    "last_time_in": null,
+    "last_time_out": null,
+    "last_break_start": null,
+    "last_break_end": null,
+    "last_job_start": null,
+    "last_job_end": null
+  },
+  {
+    "name": "Anumol C Vasu",
+    "attendance_state": "timed_out",
+    "on_job": false,
+    "last_time_in": null,
+    "last_time_out": null,
+    "last_break_start": null,
+    "last_break_end": null,
+    "last_job_start": null,
+    "last_job_end": null
+  },
+  {
+    "name": "Nadirsha P K",
+    "attendance_state": "timed_out",
+    "on_job": false,
+    "last_time_in": null,
+    "last_time_out": null,
+    "last_break_start": null,
+    "last_break_end": null,
+    "last_job_start": null,
+    "last_job_end": null
+  },
+  {
+    "name": "Sofiya C",
+    "attendance_state": "timed_out",
+    "on_job": false,
+    "last_time_in": null,
+    "last_time_out": null,
+    "last_break_start": null,
+    "last_break_end": null,
+    "last_job_start": null,
+    "last_job_end": null
+  },
+  {
+    "name": "Anandha Jyothi K Rajan",
+    "attendance_state": "timed_out",
+    "on_job": false,
+    "last_time_in": null,
+    "last_time_out": null,
+    "last_break_start": null,
+    "last_break_end": null,
+    "last_job_start": null,
+    "last_job_end": null
+  },
+  {
+    "name": "Devika T B",
+    "attendance_state": "timed_out",
+    "on_job": false,
+    "last_time_in": null,
+    "last_time_out": null,
+    "last_break_start": null,
+    "last_break_end": null,
+    "last_job_start": null,
+    "last_job_end": null
+  },
+  {
+    "name": "Balachandran",
+    "attendance_state": "timed_out",
+    "on_job": false,
+    "last_time_in": null,
+    "last_time_out": null,
+    "last_break_start": null,
+    "last_break_end": null,
+    "last_job_start": null,
+    "last_job_end": null
+  },
+  {
+    "name": "Riji K J",
+    "attendance_state": "timed_out",
+    "on_job": false,
+    "last_time_in": null,
+    "last_time_out": null,
+    "last_break_start": null,
+    "last_break_end": null,
+    "last_job_start": null,
+    "last_job_end": null
+  },
+  {
+    "name": "Sunil kumar",
+    "attendance_state": "timed_out",
+    "on_job": false,
+    "last_time_in": null,
+    "last_time_out": null,
+    "last_break_start": null,
+    "last_break_end": null,
+    "last_job_start": null,
+    "last_job_end": null
+  },
+  {
+    "name": "Liji Daison",
+    "attendance_state": "timed_out",
+    "on_job": false,
+    "last_time_in": null,
+    "last_time_out": null,
+    "last_break_start": null,
+    "last_break_end": null,
+    "last_job_start": null,
+    "last_job_end": null
+  },
+  {
+    "name": "Praveen",
+    "attendance_state": "timed_out",
+    "on_job": false,
+    "last_time_in": null,
+    "last_time_out": null,
+    "last_break_start": null,
+    "last_break_end": null,
+    "last_job_start": null,
+    "last_job_end": null
+  },
+  {
+    "name": "Sabidha",
+    "attendance_state": "timed_out",
+    "on_job": false,
+    "last_time_in": null,
+    "last_time_out": null,
+    "last_break_start": null,
+    "last_break_end": null,
+    "last_job_start": null,
+    "last_job_end": null
+  },
+  {
+    "name": "Abdul latheef",
+    "attendance_state": "timed_out",
+    "on_job": false,
+    "last_time_in": null,
+    "last_time_out": null,
+    "last_break_start": null,
+    "last_break_end": null,
+    "last_job_start": null,
+    "last_job_end": null
+  },
+  {
+    "name": "Bineesh KB",
+    "attendance_state": "timed_out",
+    "on_job": false,
+    "last_time_in": null,
+    "last_time_out": null,
+    "last_break_start": null,
+    "last_break_end": null,
+    "last_job_start": null,
+    "last_job_end": null
+  },
+  {
+    "name": "Sanoop EG",
+    "attendance_state": "timed_out",
+    "on_job": false,
+    "last_time_in": null,
+    "last_time_out": null,
+    "last_break_start": null,
+    "last_break_end": null,
+    "last_job_start": null,
+    "last_job_end": null
+  }
+]

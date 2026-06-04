@@ -3,14 +3,15 @@
 # Set display (important for GUI)
 export DISPLAY=:0
 
-# Optional: force Qt to use X11
-# export QT_QPA_PLATFORM=xcb
+# Qt configuration for proper platform support
+export QT_QPA_PLATFORM=xcb
+export QT_DEBUG_PLUGINS=0
 
 # Rotate screen (Wayland)
 # wlr-randr --output DSI-1 --transform 90
 
 # Go to project directory
-cd /home/parko-thrissur/EAMS_PARKO_PYTHON
+cd /home/admin/EAMS_PARKO_PYTHON
 
 # Activate virtual environment
 source env/bin/activate
