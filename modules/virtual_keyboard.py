@@ -5,13 +5,19 @@ Built-in Virtual Keyboard for PySide6 Kiosk Applications
 A modern, touch-friendly on-screen keyboard that works on any display server
 (X11, Wayland, framebuffer). No external dependencies required.
 
-Replaces the previous approach of spawning onboard/matchbox-keyboard/squeekboard
-which broke after OS reinstalls and only worked on specific display servers.
+Supports two modes:
+  - ALPHANUMERIC (default): Full QWERTY with numbers, letters, symbols
+  - NUMERIC: Compact numpad for PIN / passcode entry
 
 Usage:
     from modules.virtual_keyboard import VKLineEdit, VirtualKeyboard
-    # VKLineEdit auto-shows the keyboard on focus.
-    # Or manage VirtualKeyboard manually via VirtualKeyboard.instance().
+
+    # Alphanumeric (default)
+    name_input = VKLineEdit()
+
+    # Numeric-only (for passcodes)
+    pin_input = VKLineEdit()
+    pin_input.setProperty("keyboard_mode", "numeric")
 """
 
 from PySide6.QtWidgets import (
@@ -50,7 +56,15 @@ ROWS_SYMBOLS = [
     ['ABC', ',', ' ', '.', '⏎'],
 ]
 
-# Keys that get special wider sizing
+# Numeric-only keypad layout (for PIN / passcode)
+ROWS_NUMERIC = [
+    ['1', '2', '3'],
+    ['4', '5', '6'],
+    ['7', '8', '9'],
+    ['⌫', '0', '⏎'],
+]
+
+# Keys that get special wider sizing (alphanumeric mode)
 WIDE_KEYS = {' ': 4.0, '⇧': 1.5, '⌫': 1.5, '⏎': 1.5, '#+=': 1.5, 'ABC': 1.5}
 
 # ── THEME ─────────────────────────────────────────────────────────────────────
@@ -138,23 +152,28 @@ def _is_widget_alive(widget):
     if widget is None:
         return False
     try:
-        # Accessing any property will raise RuntimeError if C++ object is deleted
         widget.objectName()
         return True
     except RuntimeError:
         return False
 
 
+# ── Keyboard modes ────────────────────────────────────────────────────────────
+MODE_ALPHA = "alpha"
+MODE_NUMERIC = "numeric"
+
+
 class VirtualKeyboard(QWidget):
     """
     A modern, touch-friendly virtual keyboard overlay for PySide6 fullscreen apps.
 
-    Creates a fresh keyboard for each parent window/dialog.
-    The keyboard is positioned at the bottom of its parent.
+    Supports two modes:
+      - MODE_ALPHA:   Full QWERTY keyboard (default)
+      - MODE_NUMERIC: Compact 3×4 numpad for PIN entry
     """
 
-    key_pressed = Signal(str)   # Emitted for character keys
-    enter_pressed = Signal()     # Emitted when Enter/Return is pressed
+    key_pressed = Signal(str)
+    enter_pressed = Signal()
 
     _instance = None
 
@@ -162,14 +181,14 @@ class VirtualKeyboard(QWidget):
         super().__init__(parent)
         self._shift_on = False
         self._symbols_on = False
-        self._target_input = None  # The QLineEdit currently focused
-        self._key_buttons = []     # Store refs for re-styling
+        self._mode = MODE_ALPHA
+        self._target_input = None
+        self._key_buttons = []
         self._visible = False
 
         self.setObjectName("VirtualKeyboard")
         self.setStyleSheet(KB_STYLE)
 
-        # Ensure we don't steal focus from the input field
         self.setFocusPolicy(Qt.NoFocus)
         self.setAttribute(Qt.WA_ShowWithoutActivating, True)
 
@@ -178,22 +197,13 @@ class VirtualKeyboard(QWidget):
 
     @classmethod
     def instance(cls, parent=None):
-        """
-        Get or create the keyboard instance for the given parent.
-        
-        If the previous instance was destroyed (parent dialog closed),
-        a new one is created automatically.
-        """
-        # Check if previous instance is still alive
+        """Get or create the keyboard instance for the given parent."""
         if not _is_widget_alive(cls._instance):
             cls._instance = None
 
         if cls._instance is None:
-            # Create fresh
             cls._instance = cls(parent)
         elif parent is not None and cls._instance.parent() != parent:
-            # Parent changed (e.g. new dialog opened) — need a fresh keyboard
-            # because the old one is parented to a different widget tree
             try:
                 old = cls._instance
                 old._visible = False
@@ -208,21 +218,27 @@ class VirtualKeyboard(QWidget):
 
     @classmethod
     def get_instance(cls):
-        """Return existing instance or None. Does NOT create a new one."""
+        """Return existing instance or None."""
         if not _is_widget_alive(cls._instance):
             cls._instance = None
         return cls._instance
 
+    def set_mode(self, mode):
+        """Switch between MODE_ALPHA and MODE_NUMERIC."""
+        if mode != self._mode:
+            self._mode = mode
+            self._shift_on = False
+            self._symbols_on = False
+            self._rebuild_keys()
+
     def _build_ui(self):
-        """Construct the keyboard layout."""
         self._main_layout = QVBoxLayout(self)
-        self._main_layout.setContentsMargins(4, 6, 4, 4)
+        self._main_layout.setContentsMargins(4, 6, 4, 8)
         self._main_layout.setSpacing(3)
         self._rebuild_keys()
 
     def _rebuild_keys(self):
         """Build or rebuild all key rows based on current mode."""
-        # Clear existing rows
         while self._main_layout.count():
             item = self._main_layout.takeAt(0)
             if item.layout():
@@ -232,6 +248,49 @@ class VirtualKeyboard(QWidget):
 
         self._key_buttons.clear()
 
+        if self._mode == MODE_NUMERIC:
+            self._build_numeric_keys()
+        else:
+            self._build_alpha_keys()
+
+    def _build_numeric_keys(self):
+        """Build compact 3×4 numpad layout."""
+        parent_w = self.parent().width() if self.parent() else 480
+        # Numpad keys are bigger since there are fewer
+        key_h = max(40, int(parent_w * 0.10))
+        base_font_size = max(16, int(key_h * 0.50))
+
+        for row in ROWS_NUMERIC:
+            row_layout = QHBoxLayout()
+            row_layout.setContentsMargins(int(parent_w * 0.15), 0, int(parent_w * 0.15), 0)
+            row_layout.setSpacing(4)
+
+            for key in row:
+                btn = QPushButton(key)
+                btn.setFocusPolicy(Qt.NoFocus)
+                btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+                btn.setFixedHeight(key_h)
+                btn.setCursor(Qt.PointingHandCursor)
+
+                is_special = key == '⌫'
+                is_action = key == '⏎'
+                fs = base_font_size
+
+                if is_special:
+                    btn.setStyleSheet(_key_style(fs, is_special=True))
+                elif is_action:
+                    btn.setStyleSheet(_key_style(fs, is_action=True))
+                else:
+                    btn.setStyleSheet(_key_style(fs))
+
+                btn.clicked.connect(lambda checked, k=key: self._on_key_click(k))
+                row_layout.addWidget(btn)
+                self._key_buttons.append(btn)
+
+            self._main_layout.addLayout(row_layout)
+
+    def _build_alpha_keys(self):
+        """Build full QWERTY layout."""
         if self._symbols_on:
             rows = ROWS_SYMBOLS
         elif self._shift_on:
@@ -240,9 +299,8 @@ class VirtualKeyboard(QWidget):
             rows = ROWS_LOWER
 
         parent_w = self.parent().width() if self.parent() else 480
-        # Compact key height — fits 5 rows comfortably in 30% of screen
-        key_h = max(30, int(parent_w * 0.065))
-        base_font_size = max(11, int(key_h * 0.45))
+        key_h = max(28, int(parent_w * 0.062))
+        base_font_size = max(10, int(key_h * 0.45))
 
         for row in rows:
             row_layout = QHBoxLayout()
@@ -256,10 +314,7 @@ class VirtualKeyboard(QWidget):
                 btn.setFixedHeight(key_h)
                 btn.setCursor(Qt.PointingHandCursor)
 
-                # Width stretch
                 stretch = WIDE_KEYS.get(key, 1.0)
-
-                # Styling
                 is_special = key in ('⇧', '⌫', '#+=', 'ABC')
                 is_action = key == '⏎'
                 fs = base_font_size
@@ -280,7 +335,6 @@ class VirtualKeyboard(QWidget):
             self._main_layout.addLayout(row_layout)
 
     def _clear_layout(self, layout):
-        """Recursively clear a layout."""
         while layout.count():
             item = layout.takeAt(0)
             if item.widget():
@@ -289,7 +343,6 @@ class VirtualKeyboard(QWidget):
                 self._clear_layout(item.layout())
 
     def _on_key_click(self, key):
-        """Handle a key press."""
         if key == '⇧':
             self._shift_on = not self._shift_on
             self._symbols_on = False
@@ -317,33 +370,28 @@ class VirtualKeyboard(QWidget):
             return
 
         # Regular character
-        char = key
         if self._target_input and _is_widget_alive(self._target_input):
-            self._target_input.insert(char)
+            self._target_input.insert(key)
 
-        self.key_pressed.emit(char)
+        self.key_pressed.emit(key)
 
-        # Auto-unshift after typing a character (like a phone keyboard)
+        # Auto-unshift after typing (phone-style)
         if self._shift_on and not self._symbols_on and key != ' ':
             self._shift_on = False
             self._rebuild_keys()
 
     def attach(self, line_edit):
-        """Attach the keyboard to a specific QLineEdit."""
         self._target_input = line_edit
 
     def detach(self):
-        """Detach from the current input."""
         self._target_input = None
 
     def show_keyboard(self):
-        """Slide the keyboard up from the bottom."""
         if self._visible:
             return
         self._visible = True
         self._position_at_bottom()
 
-        # Start off-screen (below bottom edge)
         final_geom = self.geometry()
         start_geom = QRect(final_geom.x(), final_geom.y() + final_geom.height(),
                            final_geom.width(), final_geom.height())
@@ -351,7 +399,6 @@ class VirtualKeyboard(QWidget):
         self.show()
         self.raise_()
 
-        # Animate slide-up
         self._anim = QPropertyAnimation(self, b"geometry")
         self._anim.setDuration(180)
         self._anim.setStartValue(start_geom)
@@ -360,7 +407,6 @@ class VirtualKeyboard(QWidget):
         self._anim.start()
 
     def hide_keyboard(self):
-        """Slide the keyboard down and hide."""
         if not self._visible:
             return
         self._visible = False
@@ -378,33 +424,40 @@ class VirtualKeyboard(QWidget):
         self._anim.start()
 
     def _on_hide_done(self):
-        """Called after hide animation completes."""
         self.hide()
         self.detach()
-        # Reset state for next show
         self._shift_on = False
         self._symbols_on = False
 
     def _position_at_bottom(self):
-        """Position the keyboard at the bottom of its parent widget."""
+        """Position the keyboard at the bottom of its parent, with safe margin."""
         parent = self.parent()
         if not parent:
             return
         pw = parent.width()
         ph = parent.height()
-        # Compact keyboard: ~30% of screen height for 7" touchscreen
-        kb_h = max(180, int(ph * 0.30))
-        self.setGeometry(0, ph - kb_h, pw, kb_h)
-        # Rebuild keys to match new size
+
+        # Bottom margin to prevent clipping on touchscreens
+        bottom_margin = max(6, int(ph * 0.008))
+
+        if self._mode == MODE_NUMERIC:
+            # Compact numpad: ~25% of screen
+            kb_h = max(160, int(ph * 0.25))
+        else:
+            # Full keyboard: ~28% of screen
+            kb_h = max(170, int(ph * 0.28))
+
+        self.setGeometry(0, ph - kb_h - bottom_margin, pw, kb_h)
         self._rebuild_keys()
 
 
 class VKLineEdit(QLineEdit):
     """
-    A QLineEdit that automatically shows/hides the built-in VirtualKeyboard
-    when it receives/loses focus. Drop-in replacement for QLineEdit.
-
-    Works on X11, Wayland, framebuffer — no external dependencies.
+    A QLineEdit that auto-shows/hides the built-in VirtualKeyboard on focus.
+    
+    Set keyboard mode via property:
+        line_edit.setProperty("keyboard_mode", "numeric")   # numpad only
+        line_edit.setProperty("keyboard_mode", "alpha")      # full QWERTY (default)
     """
     _hide_timer = None
 
@@ -414,61 +467,60 @@ class VKLineEdit(QLineEdit):
 
     def focusInEvent(self, event):
         super().focusInEvent(event)
-        # Cancel any pending hide
         if VKLineEdit._hide_timer and VKLineEdit._hide_timer.isActive():
             VKLineEdit._hide_timer.stop()
         self._show_keyboard()
 
     def focusOutEvent(self, event):
         super().focusOutEvent(event)
-        # Delay hiding to handle tab-between-inputs without flickering
         if VKLineEdit._hide_timer is None:
             VKLineEdit._hide_timer = QTimer()
             VKLineEdit._hide_timer.setSingleShot(True)
             VKLineEdit._hide_timer.timeout.connect(VKLineEdit._do_hide_keyboard)
         VKLineEdit._hide_timer.start(300)
 
+    def _get_keyboard_mode(self):
+        """Read the keyboard_mode property, default to alpha."""
+        mode = self.property("keyboard_mode")
+        if mode == "numeric":
+            return MODE_NUMERIC
+        return MODE_ALPHA
+
     def _show_keyboard(self):
-        """Find the top-level window and show the virtual keyboard."""
         top = self._find_top_window()
         if not top:
             return
         kb = VirtualKeyboard.instance(top)
+        kb.set_mode(self._get_keyboard_mode())
         kb.attach(self)
         kb.show_keyboard()
 
     @classmethod
     def _hide_keyboard(cls):
-        """Class-level hide — can be called from anywhere (e.g. after dialog accept)."""
         kb = VirtualKeyboard.get_instance()
         if kb:
             kb.hide_keyboard()
 
     @classmethod
     def _do_hide_keyboard(cls):
-        """Timer callback — hide only if no VKLineEdit has focus."""
         app = QApplication.instance()
         if app:
             focused = app.focusWidget()
             if isinstance(focused, VKLineEdit):
-                # Another VKLineEdit got focus — re-attach keyboard to it
                 top = focused._find_top_window()
                 if top:
                     kb = VirtualKeyboard.instance(top)
+                    kb.set_mode(focused._get_keyboard_mode())
                     kb.attach(focused)
-                    # If keyboard isn't visible yet (new dialog), show it
                     if not kb._visible:
                         kb.show_keyboard()
                 return
-        # No VKLineEdit has focus — hide the keyboard
         cls._hide_keyboard()
 
     def _find_top_window(self):
-        """Walk up the widget tree to find the top-level window."""
         w = self.window()
         if w:
             return w
-        # Fallback: walk parent chain
         w = self.parent()
         while w:
             if w.isWindow():

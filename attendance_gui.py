@@ -456,8 +456,9 @@ class AdminPasswordDialog(QDialog):
         root.addWidget(title)
 
         self.password_input = VKLineEdit()
-        self.password_input.setPlaceholderText("Enter admin password")
+        self.password_input.setPlaceholderText("Enter admin passcode")
         self.password_input.setEchoMode(QLineEdit.Password)
+        self.password_input.setProperty("keyboard_mode", "numeric")
         self.password_input.returnPressed.connect(self.accept)
         root.addWidget(self.password_input)
 
