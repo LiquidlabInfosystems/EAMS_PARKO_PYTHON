@@ -6,6 +6,7 @@ export DISPLAY=:0
 # Qt configuration for proper platform support
 export QT_QPA_PLATFORM=xcb
 export QT_DEBUG_PLUGINS=0
+# Virtual keyboard is built-in (modules/virtual_keyboard.py) — no system OSK needed
 
 # Rotate screen (Wayland)
 # wlr-randr --output DSI-1 --transform 90

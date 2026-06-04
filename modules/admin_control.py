@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushB
                                QMessageBox, QDialog, QLineEdit, QComboBox, QScrollArea, QApplication, QScroller)
 from PySide6.QtCore import Qt, Signal, QSize, QTimer
 from PySide6.QtGui import QFont, QIcon
-import subprocess
+from modules.virtual_keyboard import VKLineEdit
 
 # --- Theme configuration from welcome_screen ---
 THEME = {
@@ -28,70 +28,7 @@ THEME = {
     "error": "#E74C3C",
 }
 
-class VKLineEdit(QLineEdit):
-    """
-    Triggers the default system virtual keyboard (squeekboard on Wayland, onboard on X11).
-    Includes auto-hide logic on focus loss.
-    """
-    _kb_proc = None
-    _hide_timer = None
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.setAttribute(Qt.WA_InputMethodEnabled, True)
-
-    def focusInEvent(self, event):
-        super().focusInEvent(event)
-        if VKLineEdit._hide_timer and VKLineEdit._hide_timer.isActive():
-            VKLineEdit._hide_timer.stop()
-        self._show_keyboard()
-
-    def focusOutEvent(self, event):
-        super().focusOutEvent(event)
-        if VKLineEdit._hide_timer is None:
-            VKLineEdit._hide_timer = QTimer()
-            VKLineEdit._hide_timer.setSingleShot(True)
-            VKLineEdit._hide_timer.timeout.connect(self._hide_keyboard)
-        VKLineEdit._hide_timer.start(200)
-
-    @classmethod
-    def _show_keyboard(cls):
-        try:
-            subprocess.run(
-                ['dbus-send', '--session', '--type=method_call',
-                 '--dest=sm.puri.OSK0', '/sm/puri/OSK0',
-                 'sm.puri.OSK0.SetVisible', 'boolean:true'],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                check=True
-            )
-            return
-        except Exception:
-            pass
-        if cls._kb_proc is not None and cls._kb_proc.poll() is None:
-            return
-        for cmd in (['onboard'], ['matchbox-keyboard']):
-            try:
-                cls._kb_proc = subprocess.Popen(
-                    cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-                )
-                return
-            except FileNotFoundError:
-                continue
-
-    @classmethod
-    def _hide_keyboard(cls):
-        try:
-            subprocess.run(
-                ['dbus-send', '--session', '--type=method_call',
-                 '--dest=sm.puri.OSK0', '/sm/puri/OSK0',
-                 'sm.puri.OSK0.SetVisible', 'boolean:false'],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-            )
-        except Exception:
-            pass
-        if cls._kb_proc is not None and cls._kb_proc.poll() is None:
-            cls._kb_proc.terminate()
-            cls._kb_proc = None
 
 
 class SearchableListDialog(QDialog):

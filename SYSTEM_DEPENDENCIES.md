@@ -90,6 +90,20 @@ python attendance_gui.py
 | "Could not load Qt platform plugin" | Set `DISPLAY=:0` and `QT_QPA_PLATFORM=xcb` |
 | No camera feed | Ensure camera is enabled in `raspi-config` |
 | CPU-only inference is slow | Normal for ARM64 - uses CPU fallback (no GPU) |
+| No virtual keyboard on input fields | Built-in keyboard in `modules/virtual_keyboard.py` ✅ (FIXED) |
+
+### Virtual Keyboard
+
+The virtual keyboard is **built-in** to the application (`modules/virtual_keyboard.py`).
+No external keyboard packages (`onboard`, `matchbox-keyboard`, `squeekboard`) are needed.
+
+- Automatically appears when tapping any input field (password, name, employee ID, search)
+- Works on X11, Wayland, or any display server
+- QWERTY layout with Shift, Symbols, Backspace, Enter keys
+- Touch-friendly with large key targets for 7" touchscreen
+- Survives OS reinstalls — no system packages to install
+
+The `QT_IM_MODULE` environment variable is NOT needed in the systemd service file.
 
 ---
 
