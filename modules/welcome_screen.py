@@ -170,6 +170,8 @@ class WelcomeScreen(QWidget):
         self.instruction_label.setWordWrap(True)
         self.instruction_label.setMinimumWidth(10)
         self.main_layout.addWidget(self.instruction_label)
+        self._default_instruction_text = "Position your face in front of the camera"
+        self._default_instruction_style = self.instruction_label.styleSheet()
         self.main_layout.addSpacing(20)
         
         # Status indicator
@@ -374,6 +376,26 @@ class WelcomeScreen(QWidget):
     def set_instruction(self, text):
         """Update the instruction text"""
         self.instruction_label.setText(text)
+
+    def set_offline_mode(self, offline: bool, message: str = ""):
+        """Show or clear the offline network message with error styling."""
+        if offline:
+            self.instruction_label.setText(message)
+            self.instruction_label.setStyleSheet(f"""
+                color: {THEME['error']};
+                font-size: 16px;
+                font-weight: 600;
+                font-family: 'Inter', 'SF Pro Display', 'Segoe UI', 'Roboto', sans-serif;
+                padding: 12px 20px;
+                background: rgba(231, 76, 60, 0.1);
+                border: 1px solid rgba(231, 76, 60, 0.4);
+                border-radius: 8px;
+            """)
+            self.status_label.setText("Network unavailable")
+        else:
+            self.instruction_label.setText(self._default_instruction_text)
+            self.instruction_label.setStyleSheet(self._default_instruction_style)
+            self.status_label.setText("Waiting for face detection...")
     
     # Opacity property for fade animations
     def get_opacity(self):

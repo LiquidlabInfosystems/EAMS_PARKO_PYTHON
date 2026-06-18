@@ -121,8 +121,7 @@ class AttendanceStateManager:
             - is_blocked: True if user should be blocked from actions
         """
         if not api_response:
-            # API offline - use local state
-            return True, "Using offline mode", False
+            return False, "The network is not available. Please use mobile application.", True
         
         # Check for blocking conditions
         if not api_response.get('success', False):

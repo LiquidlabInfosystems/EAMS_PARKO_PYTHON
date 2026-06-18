@@ -31,7 +31,7 @@ from datetime import datetime
 import cv2
 
 from face_recognizer import FaceRecognizer
-from modules.api_client import AttendanceAPIClient
+from modules.api_client import AttendanceAPIClient, OFFLINE_MESSAGE
 from modules.attendance_state_manager import AttendanceStateManager
 from modules.mqtt_incident_reporter import MQTTIncidentReporter
 from modules.unknown_person_tracker import UnknownPersonTracker
@@ -714,6 +714,10 @@ class AttendanceKioskGUI(QMainWindow):
         # Welcome screen state
         self.no_face_timeout = None
 
+        # Server connectivity (attendance gated when API enabled but server offline)
+        self.server_available = True
+        self._offline_notified = False
+
         # ★★★ FACE CONFIRMATION & FREEZE STATE ★★★
         self.face_confirmed = False              # Is face confirmed and frozen?
         self.confirmed_person_name = None        # Name of confirmed person
@@ -755,6 +759,56 @@ class AttendanceKioskGUI(QMainWindow):
         self.status_sync_timer.timeout.connect(self._sync_current_user_status)
         self.status_sync_timer.start(60000)  # 60 seconds
 
+        if self.api_client:
+            self.server_available = self.api_client.is_server_online()
+            self.health_poll_timer = QTimer()
+            self.health_poll_timer.timeout.connect(self._poll_server_health)
+            self.health_poll_timer.start(10000)
+            QTimer.singleShot(0, lambda: self._update_server_connectivity_state(self.server_available))
+
+
+    def _poll_server_health(self):
+        """Poll API client server status and react to connectivity changes."""
+        if not self.api_client:
+            return
+        online = self.api_client.is_server_online()
+        if online != self.server_available:
+            self._update_server_connectivity_state(online)
+
+    def _update_server_connectivity_state(self, online: bool):
+        """Handle server online/offline transitions for attendance UI."""
+        was_online = self.server_available
+        self.server_available = online
+
+        if online:
+            if hasattr(self, 'welcome_widget'):
+                self.welcome_widget.set_offline_mode(False)
+            self.status_label.setText("Ready - Position face in front of camera")
+            if not was_online:
+                self.notification_overlay.show_notification(
+                    "Success", "Server connected", "success", 2000
+                )
+            self._offline_notified = False
+        else:
+            if self.face_confirmed or self.display_stack.currentIndex() != 0:
+                self._reset_face_confirmation()
+            else:
+                self.show_welcome_screen()
+            if hasattr(self, 'welcome_widget'):
+                self.welcome_widget.set_offline_mode(True, OFFLINE_MESSAGE)
+            self.status_label.setText("⚠️ Network unavailable — please use mobile application")
+            if not self._offline_notified:
+                self.notification_overlay.show_notification(
+                    "Error", OFFLINE_MESSAGE, "error", 4000
+                )
+                self._offline_notified = True
+
+    def _guard_server_online(self) -> bool:
+        """Return False and notify if attendance actions are blocked due to offline server."""
+        if self.api_client and not self.api_client.is_server_online():
+            self.notification_overlay.show_notification("Error", OFFLINE_MESSAGE, "error", 3000)
+            return False
+        return True
 
     def init_ui(self):
         """Initialize UI"""
@@ -1126,7 +1180,10 @@ class AttendanceKioskGUI(QMainWindow):
         Fetch and sync attendance status from server for a person with up to 3 retries.
         """
         if not self.api_client:
-            return True  # Offline mode - allow actions
+            return True  # No API client — local-only mode
+        
+        if not self.api_client.is_server_online():
+            return False
         
         # Get employee ID for this person
         employee_id = self.face_recognizer.get_employee_id(person_name)
@@ -1153,6 +1210,9 @@ class AttendanceKioskGUI(QMainWindow):
                 # Fetch status from server
                 timestamp = int(datetime.now().timestamp())
                 api_response = self.api_client.get_attendance_status(employee_id, timestamp)
+                
+                if api_response is None:
+                    return False
                 
                 # Update tracking
                 self.last_status_sync_time = current_time
@@ -1182,11 +1242,11 @@ class AttendanceKioskGUI(QMainWindow):
                     print(f"❌ All {max_retries} attempts failed.")
                     if show_loading:
                         self.status_label.setText("⚠️ Server is Not Connected")
-                        self.notification_overlay.show_notification("Error", "Server is Not Connected", "error", 2000)
-                    self.is_user_blocked = False # Fallback to local
-                    return True # Allow on error (fallback)
+                        self.notification_overlay.show_notification("Error", OFFLINE_MESSAGE, "error", 2000)
+                    self.is_user_blocked = False
+                    return False
         
-        return True
+        return False
 
     def _sync_all_users_on_startup(self):
         """Sync attendance status for all registered employees on startup"""
@@ -1233,6 +1293,8 @@ class AttendanceKioskGUI(QMainWindow):
         # Resume animation
         if hasattr(self, 'welcome_widget'):
             self.welcome_widget.start_animation()
+            if self.api_client and not self.api_client.is_server_online():
+                self.welcome_widget.set_offline_mode(True, OFFLINE_MESSAGE)
 
 
     def display_frame(self, frame_rgb):
@@ -1355,6 +1417,15 @@ class AttendanceKioskGUI(QMainWindow):
         try:
             frame_rgb = self.latest_frame.copy()
             self.current_frame = frame_rgb
+
+            # Block attendance flow when server is offline (registration mode still allowed)
+            if not self.registration_mode and self.api_client and not self.api_client.is_server_online():
+                if self.server_available:
+                    self._update_server_connectivity_state(False)
+                elif self.display_stack.currentIndex() != 0:
+                    self.show_welcome_screen()
+                self.processing = False
+                return
 
             GREEN_RGB = (0, 255, 0)
             RED_RGB = (255, 0, 0)
@@ -1930,6 +2001,9 @@ class AttendanceKioskGUI(QMainWindow):
             self.notification_overlay.show_notification("Error", "No person locked!", "error", 1000)
             return
 
+        if not self._guard_server_online():
+            return
+
         # ★★★ SET EVENT IN PROGRESS - Pause face processing during dialog ★★★
         self.event_in_progress = True
 
@@ -1949,21 +2023,23 @@ class AttendanceKioskGUI(QMainWindow):
                         employee_id=employee_id
                     )
                     
-                    if not api_success and api_error:
-                        # API rejected the action - show error and reset
-                        self.notification_overlay.show_notification("❌ Action Rejected", api_error, "error", 4000)
+                    if not api_success:
+                        error_msg = api_error or OFFLINE_MESSAGE
+                        self.notification_overlay.show_notification("❌ Action Rejected", error_msg, "error", 4000)
                         self.locked_person_for_action = None
                         self.locked_person_timestamp = None
                         self.event_in_progress = False
-                        
-                        # Auto-reset to welcome screen after notification
                         QTimer.singleShot(4000, self._reset_face_confirmation)
                         return
                 except Exception as e:
                     print(f"⚠️ API validation error: {e}")
-                    # Continue with local update if API check fails unexpectedly
+                    self.notification_overlay.show_notification("Error", OFFLINE_MESSAGE, "error", 3000)
+                    self.locked_person_for_action = None
+                    self.locked_person_timestamp = None
+                    self.event_in_progress = False
+                    return
             
-            # ★★★ UPDATE LOCAL STATE (only if API succeeded or offline) ★★★
+            # ★★★ UPDATE LOCAL STATE (only after API succeeded) ★★★
             action_map = {
                 "TIME IN": self.state_manager.time_in,
                 "TIME OUT": self.state_manager.time_out,
@@ -2106,6 +2182,8 @@ class AttendanceKioskGUI(QMainWindow):
 
     
     def handle_time_in(self):
+        if not self._guard_server_online():
+            return
         if not self.current_recognized_person:
             self.notification_overlay.show_notification("Error", "No face recognized!", "error", 1000)
             return
@@ -2118,6 +2196,8 @@ class AttendanceKioskGUI(QMainWindow):
         self.verify_and_log_action("TIME IN")
 
     def handle_time_out(self):
+        if not self._guard_server_online():
+            return
         if not self.current_recognized_person:
             self.notification_overlay.show_notification("Error", "No face recognized!", "error", 1000)
             return
@@ -2130,6 +2210,8 @@ class AttendanceKioskGUI(QMainWindow):
         self.verify_and_log_action("TIME OUT")
 
     def handle_break_in(self):
+        if not self._guard_server_online():
+            return
         if not self.current_recognized_person:
             self.notification_overlay.show_notification("Error", "No face recognized!", "error", 1000)
             return
@@ -2142,6 +2224,8 @@ class AttendanceKioskGUI(QMainWindow):
         self.verify_and_log_action("BREAK START")
 
     def handle_break_out(self):
+        if not self._guard_server_online():
+            return
         if not self.current_recognized_person:
             self.notification_overlay.show_notification("Error", "No face recognized!", "error", 1000)
             return
@@ -2154,6 +2238,8 @@ class AttendanceKioskGUI(QMainWindow):
         self.verify_and_log_action("BREAK END")
 
     def handle_job_in(self):
+        if not self._guard_server_online():
+            return
         if not self.current_recognized_person:
             self.notification_overlay.show_notification("Error", "No face recognized!", "error", 1000)
             return
@@ -2166,6 +2252,8 @@ class AttendanceKioskGUI(QMainWindow):
         self.verify_and_log_action("JOB START")
 
     def handle_job_out(self):
+        if not self._guard_server_online():
+            return
         if not self.current_recognized_person:
             self.notification_overlay.show_notification("Error", "No face recognized!", "error", 1000)
             return

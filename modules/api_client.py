@@ -15,6 +15,8 @@ import os
 
 import config
 
+OFFLINE_MESSAGE = "The network is not available. Please use mobile application."
+
 
 class AttendanceAPIClient:
     """
@@ -98,6 +100,13 @@ class AttendanceAPIClient:
         print(f"  └─ Full URL: {self.base_url}")
         if self.failed_queue:
             print(f"  └─ 💾 Loaded {len(self.failed_queue)} failed requests from disk")
+
+        self._check_server_health()
+        self.last_health_check = time.time()
+
+    def is_server_online(self) -> bool:
+        """Return whether the server passed the last health check."""
+        return self.server_online
 
     def _load_failed_requests(self):
         """Load failed requests from persistent storage"""
@@ -216,6 +225,7 @@ class AttendanceAPIClient:
             
             if response.status_code == 200:
                 data = response.json()
+                self.server_online = True
                 return data
             else:
                 # Try to parse error response
@@ -230,9 +240,11 @@ class AttendanceAPIClient:
                     
         except requests.exceptions.Timeout:
             print(f"⏱️ Attendance status request timeout")
+            self.server_online = False
             return None
         except requests.exceptions.ConnectionError:
             print(f"🔌 Server offline - cannot fetch attendance status")
+            self.server_online = False
             return None
         except Exception as e:
             print(f"❌ Error fetching attendance status: {e}")
@@ -266,6 +278,7 @@ class AttendanceAPIClient:
             
             if response.status_code in [200, 201]:
                 print(f"✅ API Validated: {name} - {condition}")
+                self.server_online = True
                 return True, None
             else:
                 # Parse error message from response
@@ -278,16 +291,17 @@ class AttendanceAPIClient:
                 return False, error_msg
                 
         except requests.exceptions.Timeout:
-            # On timeout, allow local update (queue for retry)
-            print(f"⏱️ API Timeout - will queue for retry")
-            return True, None  # Allow local update
+            print(f"⏱️ API Timeout - server unreachable")
+            self.server_online = False
+            return False, OFFLINE_MESSAGE
         except requests.exceptions.ConnectionError:
-            # On connection error, allow local update (queue for retry)
-            print(f"🔌 API Offline - will queue for retry")
-            return True, None  # Allow local update
+            print(f"🔌 API Offline - cannot record attendance")
+            self.server_online = False
+            return False, OFFLINE_MESSAGE
         except Exception as e:
             print(f"❌ API Error: {e}")
-            return True, None  # Allow local update on unknown errors
+            self.server_online = False
+            return False, OFFLINE_MESSAGE
 
     def send_attendance_event(self, name: str, action: str, timestamp: Optional[datetime] = None, employee_id: Optional[str] = None) -> bool:
         """
