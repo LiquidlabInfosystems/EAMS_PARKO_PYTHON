@@ -45,6 +45,7 @@ class FaceRecognizer:
                  enable_liveness: bool = False,
                  strict_quality: bool = False,
                  use_face_alignment: bool = False,
+                 num_threads: int = 0,
                  # Legacy parameter - ignored, kept for backward compatibility
                  model_path: str = None):
         """
@@ -88,7 +89,8 @@ class FaceRecognizer:
             model_name=model_name,
             det_size=det_size,
             providers=providers,
-            det_score_threshold=detection_confidence
+            det_score_threshold=detection_confidence,
+            num_threads=num_threads
         )
         print(f"✓ Face Detector + Encoder: InsightFace ({model_name}) - 512-D embeddings")
         

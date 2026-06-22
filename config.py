@@ -29,11 +29,21 @@ ENABLE_LIVENESS = False  # Blink detection
 
 # ★★★ CAMERA SETTINGS ★★★
 # Pi 4 note: 640×640 @ 15 FPS is a safe operating point.
-# Rotation is applied at libcamera ISP level (not per-frame in Python),
-# so changing CAMERA_ROTATION has zero CPU cost at runtime.
+# Mirror is applied at libcamera ISP level; rotation is applied per-frame via
+# cv2.rotate inside CameraThread (vc4 pipeline cannot rotate in the ISP here).
 CAMERA_RESOLUTION = (960, 1080)
-CAMERA_FPS = 60           # Pi 4 safe value (Pi 5 could run 30-60)
-CAMERA_ROTATION = 90      # Applied once at camera init via libcamera.Transform
+CAMERA_FPS = 30           # Camera capture rate (display is decoupled from recognition)
+CAMERA_ROTATION = 90      # Applied per-frame via cv2.rotate in CameraThread
+
+# ★★★ PERFORMANCE / THREADING SETTINGS (Raspberry Pi 4) ★★★
+# Recognition runs on a dedicated worker thread, decoupled from the live preview.
+# The preview is painted by a lightweight display timer so it stays lag-free even
+# when InsightFace inference is slow.
+RECOGNITION_TARGET_FPS = 8     # How often the worker runs face recognition (Hz)
+DISPLAY_FPS = 25               # Live preview repaint rate (independent of recognition)
+RECOGNITION_DOWNSCALE = 1.0    # Scale frame before inference (e.g. 0.6 = faster, 1.0 = off)
+RECOGNITION_PREPROCESS = True  # Apply CLAHE/denoise before recognition (False = faster)
+ONNX_NUM_THREADS = 0           # onnxruntime intra-op threads (0 = library default/auto)
 
 # ★★★ INSIGHTFACE MODEL SETTINGS ★★★
 # buffalo_sc is the only practical choice on Pi 4 (buffalo_l is too slow).

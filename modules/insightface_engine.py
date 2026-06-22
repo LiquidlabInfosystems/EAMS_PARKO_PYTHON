@@ -27,7 +27,8 @@ class InsightFaceEngine:
                  model_name='buffalo_sc',
                  det_size=(640, 640),
                  providers=None,
-                 det_score_threshold=0.5):
+                 det_score_threshold=0.5,
+                 num_threads=0):
         """
         Initialize InsightFace engine.
         
@@ -37,6 +38,9 @@ class InsightFaceEngine:
             providers: ONNX Runtime execution providers list.
                        Default: auto-detect (try CUDA first, fallback to CPU)
             det_score_threshold: Minimum detection confidence score
+            num_threads: onnxruntime intra-op thread count (0 = library default).
+                         Capping this on a 4-core Pi 4 leaves headroom for the
+                         GUI/camera threads and improves UI responsiveness.
         """
         self.model_name = model_name
         self.det_size = det_size
@@ -60,11 +64,25 @@ class InsightFaceEngine:
                 "For GPU support: pip install onnxruntime-gpu"
             )
         
-        # Initialize FaceAnalysis
-        self.face_app = FaceAnalysis(
-            name=model_name,
-            providers=providers
-        )
+        # Build onnxruntime session options to cap CPU thread usage on the Pi 4.
+        face_app_kwargs = {'name': model_name, 'providers': providers}
+        if num_threads and num_threads > 0:
+            try:
+                import onnxruntime as ort
+                sess_options = ort.SessionOptions()
+                sess_options.intra_op_num_threads = int(num_threads)
+                sess_options.inter_op_num_threads = 1
+                face_app_kwargs['session_options'] = sess_options
+                print(f"   ONNX threads: intra_op={num_threads}, inter_op=1")
+            except Exception as e:
+                print(f"   ⚠️ Could not set ONNX thread limits: {e}")
+        
+        # Initialize FaceAnalysis (retry without session_options if unsupported)
+        try:
+            self.face_app = FaceAnalysis(**face_app_kwargs)
+        except TypeError:
+            face_app_kwargs.pop('session_options', None)
+            self.face_app = FaceAnalysis(**face_app_kwargs)
         self.face_app.prepare(ctx_id=0, det_size=det_size)
         
         print(f"✅ InsightFace Model Loaded ({model_name})")

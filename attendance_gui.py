@@ -22,7 +22,8 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QGridLayout, QMessageBox, QDialog, QProgressBar, QStackedWidget,
                                QSizePolicy, QLineEdit, QScrollArea, QScroller)
 from PySide6.QtCore import Qt, QThread, Signal, Slot, QTimer, QPropertyAnimation, QEasingCurve
-from PySide6.QtGui import QImage, QPixmap, QFont
+from PySide6.QtGui import QImage, QPixmap, QFont, QPainter, QPen, QColor
+import threading
 from picamera2 import Picamera2
 import libcamera
 import numpy as np
@@ -392,6 +393,184 @@ class CameraThread(QThread):
         self.quit()
         self.wait()
 
+
+class RecognitionWorker(QThread):
+    """
+    Runs face detection/recognition on a dedicated thread so the GUI thread
+    never blocks on InsightFace inference. Reads the latest camera frame from
+    the GUI, throttles to a target FPS, optionally downscales the frame, runs a
+    single inference pass, and emits the results back to the GUI.
+
+    onnxruntime / OpenCV release the GIL during native work, so this genuinely
+    offloads CPU from the GUI event loop and keeps the UI responsive.
+    """
+    result_ready = Signal(dict)
+
+    def __init__(self, gui):
+        super().__init__()
+        self.gui = gui
+        self._running = False
+        target_fps = max(getattr(config, 'RECOGNITION_TARGET_FPS', 8), 1)
+        self._interval = 1.0 / target_fps
+        self._downscale = float(getattr(config, 'RECOGNITION_DOWNSCALE', 1.0) or 1.0)
+        self._preprocess = bool(getattr(config, 'RECOGNITION_PREPROCESS', True))
+
+    @staticmethod
+    def _scale_bbox(bbox, factor):
+        x, y, w, h = bbox
+        return (int(x * factor), int(y * factor), int(w * factor), int(h * factor))
+
+    def run(self):
+        self._running = True
+        print("✓ Recognition worker thread started")
+        while self._running:
+            start = time.time()
+            gui = self.gui
+
+            # Skip while an action is in progress (the action worker may touch the
+            # recognizer) or while the admin page (index 1) is showing (camera paused).
+            frame = gui.latest_frame
+            if (frame is None or gui.event_in_progress or
+                    gui.pages_stack.currentIndex() == 1):
+                time.sleep(self._interval)
+                continue
+
+            try:
+                frame_rgb = frame.copy()
+                registration = gui.registration_mode
+
+                proc = frame_rgb
+                scale = self._downscale
+                if scale and scale != 1.0:
+                    proc = cv2.resize(frame_rgb, None, fx=scale, fy=scale,
+                                      interpolation=cv2.INTER_AREA)
+
+                if registration:
+                    processed = gui.face_recognizer.preprocess_image(proc)
+                    detected = gui.face_recognizer.detect_faces(processed)
+                    recognized = []
+                else:
+                    detected, recognized = gui.face_recognizer.process_frame(
+                        proc, preprocess=self._preprocess)
+
+                # Map bboxes back to full-resolution frame coordinates
+                if scale and scale != 1.0:
+                    inv = 1.0 / scale
+                    for f in detected:
+                        f['bbox'] = self._scale_bbox(f['bbox'], inv)
+                    for f in recognized:
+                        f['bbox'] = self._scale_bbox(f['bbox'], inv)
+
+                self.result_ready.emit({
+                    'detected': detected,
+                    'recognized': recognized,
+                    'registration': registration,
+                    'frame': frame_rgb,
+                })
+
+            except Exception as e:
+                print(f"Recognition worker error: {e}")
+                import traceback
+                traceback.print_exc()
+
+            elapsed = time.time() - start
+            if elapsed < self._interval:
+                time.sleep(self._interval - elapsed)
+
+    def stop(self):
+        self._running = False
+        self.wait(2000)
+
+
+class ActionWorker(QThread):
+    """
+    Runs the heavy part of an attendance action (API validation, state update,
+    local logging and adaptive learning) off the GUI thread so the button tap
+    never freezes the interface. Emits the outcome back to the GUI.
+    """
+    done = Signal(bool, str, bool)  # success, message, should_reset
+
+    def __init__(self, gui, action, person, frame, timestamp):
+        super().__init__()
+        self.gui = gui
+        self.action = action
+        self.person = person
+        self.frame = frame
+        self.timestamp = timestamp
+
+    def run(self):
+        gui = self.gui
+        action = self.action
+        person = self.person
+        timestamp = self.timestamp
+        try:
+            # 1) Validate + send to API (server is source of truth)
+            if gui.api_client:
+                try:
+                    employee_id = gui.face_recognizer.get_employee_id(person)
+                    api_success, api_error = gui.api_client.validate_and_send_event(
+                        name=person,
+                        action=action,
+                        timestamp=timestamp,
+                        employee_id=employee_id
+                    )
+                    if not api_success:
+                        self.done.emit(False, api_error or OFFLINE_MESSAGE, True)
+                        return
+                except Exception as e:
+                    print(f"⚠️ API validation error: {e}")
+                    self.done.emit(False, OFFLINE_MESSAGE, False)
+                    return
+
+            # 2) Update local state (only after API succeeded)
+            action_map = {
+                "TIME IN": gui.state_manager.time_in,
+                "TIME OUT": gui.state_manager.time_out,
+                "BREAK START": gui.state_manager.break_start,
+                "BREAK END": gui.state_manager.break_end,
+                "JOB START": gui.state_manager.job_start,
+                "JOB END": gui.state_manager.job_end,
+            }
+            if action in action_map:
+                success, state_msg = action_map[action](person)
+                if not success:
+                    self.done.emit(False, state_msg, False)
+                    return
+
+            # 3) Local file log
+            gui.log_action_local_only(action, person, timestamp)
+
+            # 4) Adaptive learning (best-effort)
+            if self.frame is not None and gui.current_recognized_person == person:
+                try:
+                    faces = gui.face_recognizer.detect_faces(self.frame)
+                    if faces:
+                        face = max(faces, key=lambda f: f['bbox'][2] * f['bbox'][3])
+                        face_img = gui.face_recognizer.extract_face_region(
+                            self.frame, face, align=False)
+                        if face_img is not None:
+                            is_valid, msg, quality = gui.face_recognizer.validate_face_sample(
+                                face_img, check_liveness=False)
+                            if is_valid and quality >= 0.75:
+                                embedding = gui.face_recognizer.extract_embedding(face_img)
+                                if embedding is not None:
+                                    added = gui.face_recognizer.add_embedding_to_existing_person(
+                                        person, embedding, max_embeddings=50)
+                                    if added:
+                                        gui.adaptive_learning_count += 1
+                except Exception as e:
+                    print(f"Adaptive learning error: {e}")
+
+            timestamp_str = timestamp.strftime("%H:%M:%S")
+            api_note = "Recorded" if gui.api_client else "💾 Local"
+            message = f"{action}\n{person}\n{timestamp_str}\n{api_note}"
+            self.done.emit(True, message, True)
+
+        except Exception as e:
+            print(f"Action worker error: {e}")
+            self.done.emit(False, OFFLINE_MESSAGE, False)
+
+
 class AdminPasswordDialog(QDialog):
     """Admin-password modal. All sizes scale with screen resolution."""
 
@@ -618,7 +797,8 @@ class AttendanceKioskGUI(QMainWindow):
                 preprocessing_method='clahe',
                 enable_liveness=config.ENABLE_LIVENESS,
                 strict_quality=False,
-                use_face_alignment=True
+                use_face_alignment=True,
+                num_threads=getattr(config, 'ONNX_NUM_THREADS', 0)
             )
 
             if config.ENABLE_LIVENESS and self.face_recognizer.liveness_detector:
@@ -718,15 +898,25 @@ class AttendanceKioskGUI(QMainWindow):
         self.server_available = True
         self._offline_notified = False
 
-        # ★★★ FACE CONFIRMATION & FREEZE STATE ★★★
-        self.face_confirmed = False              # Is face confirmed and frozen?
+        # ★★★ FACE CONFIRMATION STATE (no frozen frame - live feed stays on) ★★★
+        self.face_confirmed = False              # Is the current face confirmed?
         self.confirmed_person_name = None        # Name of confirmed person
         self.confirmed_person_similarity = 0.0   # Similarity score of confirmed person
-        self.confirmed_frame = None              # Frozen frame to display
+        self.confirmed_frame = None              # Deprecated (kept for compatibility)
         self.confirmation_start_time = None      # When stable recognition started
         self.CONFIRMATION_DELAY = 1.0            # Seconds of stable recognition before confirming
         self.event_in_progress = False           # Is user performing an event action?
         self.last_stable_person = None           # Track person for stable recognition
+
+        # ★★★ LIVE OVERLAY STATE (drawn cheaply over the live feed by display timer) ★★★
+        self.overlay_state = {}                  # {'box','color','label','sublabel','banner'}
+        self._overlay_lock = threading.Lock()    # Guards overlay_state across threads
+
+        # Background status-sync coordination (non-blocking server fetch)
+        self._status_sync_thread = None
+        self._status_sync_inflight = set()
+        self._status_sync_lock = threading.Lock()
+        self._action_worker = None
 
         # ★★★ TEMPORAL RECOGNITION BUFFER - Anti-flicker ★★★
         self.temporal_buffer = TemporalRecognitionBuffer(
@@ -744,10 +934,17 @@ class AttendanceKioskGUI(QMainWindow):
         # Start camera
         QTimer.singleShot(200, self.init_camera)
 
-        # Processing timer
-        self.process_timer = QTimer()
-        self.process_timer.timeout.connect(self.process_frame)
-        self.process_timer.start(1000 // config.CAMERA_FPS)
+        # ★★★ RECOGNITION WORKER - runs InsightFace off the GUI thread ★★★
+        self.recognition_worker = RecognitionWorker(self)
+        self.recognition_worker.result_ready.connect(
+            self.on_recognition_result, Qt.QueuedConnection)
+        self.recognition_worker.start()
+
+        # ★★★ DISPLAY TIMER - lag-free live preview, independent of recognition ★★★
+        display_fps = max(getattr(config, 'DISPLAY_FPS', 25), 1)
+        self.display_timer = QTimer()
+        self.display_timer.timeout.connect(self.update_display)
+        self.display_timer.start(1000 // display_fps)
 
         # ★★★ DATABASE RELOAD TIMER - Check for updates every 30 seconds ★★★
         self.db_reload_timer = QTimer()
@@ -1098,8 +1295,8 @@ class AttendanceKioskGUI(QMainWindow):
         if self.camera_thread and self.camera_thread.isRunning():
             self.camera_thread.stop()
             self.camera_thread.wait()
-        if self.process_timer.isActive():
-            self.process_timer.stop()
+        if self.display_timer.isActive():
+            self.display_timer.stop()
             
         self.pages_stack.setCurrentIndex(1)
 
@@ -1110,8 +1307,8 @@ class AttendanceKioskGUI(QMainWindow):
         # Resume camera and processing
         if not self.camera_thread or not self.camera_thread.isRunning():
             self.init_camera()
-        if not self.process_timer.isActive():
-            self.process_timer.start(1000 // config.CAMERA_FPS)
+        if not self.display_timer.isActive():
+            self.display_timer.start(1000 // max(getattr(config, 'DISPLAY_FPS', 25), 1))
 
     def start_registration_from_admin(self):
         """Start registration when triggered from admin page"""
@@ -1133,8 +1330,8 @@ class AttendanceKioskGUI(QMainWindow):
         if self.camera_thread and self.camera_thread.isRunning():
             self.camera_thread.stop()
             self.camera_thread.wait()
-        if self.process_timer.isActive():
-            self.process_timer.stop()
+        if self.display_timer.isActive():
+            self.display_timer.stop()
             
         self.pages_stack.setCurrentIndex(1)
         # Reset liveness and state
@@ -1173,11 +1370,36 @@ class AttendanceKioskGUI(QMainWindow):
     def _sync_current_user_status(self):
         """Sync status from server for currently recognized person (called by timer)"""
         if self.current_recognized_person and self.api_client:
-            self._sync_status_for_person(self.current_recognized_person)
+            self._request_status_sync(self.current_recognized_person)
 
-    def _sync_status_for_person(self, person_name: str, show_loading: bool = False) -> bool:
+    def _request_status_sync(self, person_name: str):
         """
-        Fetch and sync attendance status from server for a person with up to 3 retries.
+        Kick off a NON-BLOCKING server status fetch on a background thread.
+        Results update the cached self.is_user_blocked / blocked_message so the
+        GUI thread never blocks on the network. De-duplicates concurrent syncs
+        for the same person.
+        """
+        if not self.api_client or not person_name:
+            return
+        with self._status_sync_lock:
+            if person_name in self._status_sync_inflight:
+                return
+            self._status_sync_inflight.add(person_name)
+
+        def _worker():
+            try:
+                self._sync_status_for_person(person_name)
+            finally:
+                with self._status_sync_lock:
+                    self._status_sync_inflight.discard(person_name)
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _sync_status_for_person(self, person_name: str) -> bool:
+        """
+        Fetch and sync attendance status from server for a person with up to 3
+        retries. Safe to call from a background thread (only touches plain
+        attributes / network / state manager - no Qt widget calls).
         """
         if not self.api_client:
             return True  # No API client — local-only mode
@@ -1198,11 +1420,6 @@ class AttendanceKioskGUI(QMainWindow):
         if (self.last_synced_employee_id == employee_id and 
             current_time - self.last_status_sync_time < 5):  # Min 5 seconds between syncs
             return not self.is_user_blocked
-        
-        # Show loading indicator if requested
-        if show_loading:
-            self.status_label.setText("🔄 Connecting to server...")
-            QApplication.processEvents()
         
         max_retries = 3
         for attempt in range(max_retries):
@@ -1240,9 +1457,6 @@ class AttendanceKioskGUI(QMainWindow):
                     continue
                 else:
                     print(f"❌ All {max_retries} attempts failed.")
-                    if show_loading:
-                        self.status_label.setText("⚠️ Server is Not Connected")
-                        self.notification_overlay.show_notification("Error", OFFLINE_MESSAGE, "error", 2000)
                     self.is_user_blocked = False
                     return False
         
@@ -1297,25 +1511,101 @@ class AttendanceKioskGUI(QMainWindow):
                 self.welcome_widget.set_offline_mode(True, OFFLINE_MESSAGE)
 
 
-    def display_frame(self, frame_rgb):
-        """Display frame"""
+    def _frame_to_pixmap(self, frame_rgb):
+        """Convert a camera frame to a QPixmap (preserves existing color handling)."""
+        frame_bgr = frame_rgb[:, :, ::-1].copy()
+        height, width, _ = frame_bgr.shape
+        q_image = QImage(frame_bgr.data, width, height, 3 * width, QImage.Format_RGB888)
+        return QPixmap.fromImage(q_image)
+
+    def display_frame(self, frame_rgb, overlay=None):
+        """
+        Paint a frame to the camera label, drawing any overlay cheaply with
+        QPainter (no full-frame numpy/cvtColor passes in the hot path).
+        """
         try:
-            frame_bgr = frame_rgb[:, :, ::-1].copy()
+            pixmap = self._frame_to_pixmap(frame_rgb)
 
-            height, width, channel = frame_bgr.shape
-            bytes_per_line = 3 * width
+            if overlay:
+                painter = QPainter(pixmap)
+                try:
+                    box = overlay.get('box')
+                    color = overlay.get('color', (0, 255, 0))
+                    qcolor = QColor(color[0], color[1], color[2])
 
-            q_image = QImage(frame_bgr.data, width, height, bytes_per_line, QImage.Format_RGB888)
+                    if box:
+                        x, y, w, h = box
+                        pen = QPen(qcolor)
+                        pen.setWidth(4)
+                        painter.setPen(pen)
+                        painter.drawRect(int(x), int(y), int(w), int(h))
 
-            scaled_pixmap = QPixmap.fromImage(q_image).scaled(
+                        label = overlay.get('label')
+                        if label:
+                            font = painter.font()
+                            font.setPointSize(20)
+                            font.setBold(True)
+                            painter.setFont(font)
+                            ty = max(28, int(y) - 12)
+                            painter.drawText(int(x) + 6, ty, label)
+
+                        sublabel = overlay.get('sublabel')
+                        if sublabel:
+                            font = painter.font()
+                            font.setPointSize(13)
+                            font.setBold(False)
+                            painter.setFont(font)
+                            painter.drawText(int(x) + 6, int(y + h) + 24, sublabel)
+
+                    banner = overlay.get('banner')
+                    if banner:
+                        bh = 90
+                        painter.fillRect(0, 0, pixmap.width(), bh, QColor(0, 180, 120))
+                        painter.setPen(QColor(255, 255, 255))
+                        font = painter.font()
+                        font.setPointSize(26)
+                        font.setBold(True)
+                        painter.setFont(font)
+                        painter.drawText(24, 58, banner)
+                finally:
+                    painter.end()
+
+            scaled_pixmap = pixmap.scaled(
                 self.camera_label.size(),
                 Qt.KeepAspectRatio,
                 Qt.SmoothTransformation
             )
-
             self.camera_label.setPixmap(scaled_pixmap)
         except Exception as e:
             print(f"Display error: {e}")
+
+    def _set_overlay(self, overlay):
+        """Thread-safe update of the overlay state drawn over the live feed."""
+        with self._overlay_lock:
+            self.overlay_state = overlay or {}
+
+    def _get_overlay(self):
+        with self._overlay_lock:
+            return dict(self.overlay_state)
+
+    def update_display(self):
+        """
+        Display-timer callback: paint the latest live frame plus the current
+        overlay. Runs at DISPLAY_FPS, fully decoupled from recognition so the
+        preview stays smooth even when inference is slow.
+        """
+        # Registration page renders its own camera feed
+        if self.registration_mode:
+            return
+        # Only paint when the live camera view is active
+        if self.pages_stack.currentIndex() != 0:
+            return
+        if self.display_stack.currentIndex() != 1:
+            return
+        frame = self.latest_frame
+        if frame is None:
+            return
+        self.display_frame(frame, self._get_overlay())
 
     def draw_box_rgb(self, frame, x1, y1, x2, y2, color_rgb, thickness=4):
         """Draw rectangle"""
@@ -1359,6 +1649,9 @@ class AttendanceKioskGUI(QMainWindow):
         
         # Clear temporal buffer for fresh recognition
         self.temporal_buffer.clear()
+
+        # Clear the live overlay
+        self._set_overlay({})
         
         # Cancel any pending timeout
         if self.no_face_timeout:
@@ -1400,487 +1693,369 @@ class AttendanceKioskGUI(QMainWindow):
         self.feedback_timer.start(3000)  # 3 seconds
 
 
-    def process_frame(self):
-        """Process frame with face confirmation and freeze mechanism"""
-        if self.latest_frame is None or self.processing:
-            return
-
-        # ★★★ SKIP PROCESSING IF EVENT IN PROGRESS ★★★
-        if self.event_in_progress:
-            # Just display the frozen frame, don't process
-            if self.confirmed_frame is not None:
-                self.display_frame(self.confirmed_frame)
-            return
-
-        self.processing = True
-
+    @Slot(dict)
+    def on_recognition_result(self, result):
+        """
+        Handle one recognition result emitted by the RecognitionWorker.
+        Runs the attendance state machine on the GUI thread (cheap), but never
+        performs inference here. Display is handled separately by the display
+        timer using the overlay state set below.
+        """
         try:
-            frame_rgb = self.latest_frame.copy()
+            detected = result.get('detected') or []
+            recognized = result.get('recognized') or []
+            registration = result.get('registration', False)
+            frame_rgb = result.get('frame')
+            if frame_rgb is None:
+                return
+
             self.current_frame = frame_rgb
 
-            # Block attendance flow when server is offline (registration mode still allowed)
-            if not self.registration_mode and self.api_client and not self.api_client.is_server_online():
-                if self.server_available:
-                    self._update_server_connectivity_state(False)
-                elif self.display_stack.currentIndex() != 0:
-                    self.show_welcome_screen()
-                self.processing = False
+            # Drop stale results that arrive while an action is being processed
+            if self.event_in_progress:
                 return
 
             GREEN_RGB = (0, 255, 0)
             RED_RGB = (255, 0, 0)
             YELLOW_RGB = (255, 255, 0)
-            ORANGE_RGB = (255, 165, 0)
-            BLACK_RGB = (0, 0, 0)
             CYAN_RGB = (0, 255, 255)
 
-            # ★★★ IF FACE IS CONFIRMED, DISPLAY FROZEN FRAME ★★★
-            if self.face_confirmed and self.confirmed_frame is not None:
-                # Still check if face is present to detect when person leaves
-                detected, recognized = self.face_recognizer.process_frame(frame_rgb, preprocess=True)
-                has_face = bool(detected or recognized)
-                
+            # ── REGISTRATION MODE ──
+            if registration:
+                self._handle_registration_result(detected, frame_rgb)
+                return
+
+            # Block attendance flow when server is offline
+            if self.api_client and not self.api_client.is_server_online():
+                if self.server_available:
+                    self._update_server_connectivity_state(False)
+                elif self.display_stack.currentIndex() != 0:
+                    self.show_welcome_screen()
+                self._set_overlay({})
+                return
+
+            has_face = bool(detected or recognized)
+
+            # ── CONFIRMED STATE: keep the LIVE feed + banner, just monitor presence ──
+            if self.face_confirmed:
                 if not has_face:
-                    # Start timeout to reset confirmation if face disappears
                     if self.no_face_timeout is None:
                         self.no_face_timeout = QTimer()
                         self.no_face_timeout.setSingleShot(True)
                         self.no_face_timeout.timeout.connect(self._reset_face_confirmation)
                         self.no_face_timeout.start(3000)  # 3 seconds
                 else:
-                    # Face still present, cancel any timeout
                     if self.no_face_timeout:
                         self.no_face_timeout.stop()
                         self.no_face_timeout = None
-                    
-                    # Check if a DIFFERENT person appeared
+
+                    # Different person appeared -> reset
                     if recognized:
                         current_person = recognized[0].get('name', 'Unknown')
                         if current_person != self.confirmed_person_name and current_person != 'Unknown':
-                            # Different person detected - reset confirmation
                             print(f"👤 Different person detected: {current_person} (was: {self.confirmed_person_name})")
                             self._reset_face_confirmation()
-                            self.processing = False
                             return
-                
-                # Display the frozen frame with confirmation overlay
-                self.display_frame(self.confirmed_frame)
-                self.processing = False
-                return
-            # ★★★ END FROZEN FRAME LOGIC ★★★
 
-            display_frame = frame_rgb.copy()
-
-            # ★★★ WELCOME SCREEN LOGIC ★★★
-            if not self.registration_mode:
-                # Check if any face is present
-                detected, recognized = self.face_recognizer.process_frame(frame_rgb, preprocess=True)
-                has_face = bool(detected or recognized)
-
-                if has_face:
-                    # Face detected - show camera view but NOT buttons yet (wait for confirmation)
-                    if self.display_stack.currentIndex() == 0:
-                        print("👤 Face detected - showing camera view (awaiting confirmation)")
-                        self.display_stack.setCurrentIndex(1)
-                        # ★★★ BUTTONS STAY HIDDEN until face is confirmed ★★★
-                        self.button_scroll.setVisible(False)
-                        # Pause animation to save CPU for camera
-                        if hasattr(self, 'welcome_widget'):
-                            self.welcome_widget.stop_animation()
-
-
-                    # Cancel no-face timeout
-                    if self.no_face_timeout:
-                        self.no_face_timeout.stop()
-                        self.no_face_timeout = None
-
-                else:
-                    # No face - start timeout for welcome screen
-                    if self.display_stack.currentIndex() == 1:
-                        if self.no_face_timeout is None:
-                            self.no_face_timeout = QTimer()
-                            self.no_face_timeout.setSingleShot(True)
-                            self.no_face_timeout.timeout.connect(self.show_welcome_screen)
-                            self.no_face_timeout.start(3000)  # 3 seconds
-            # ★★★ END WELCOME SCREEN LOGIC ★★★
-
-            if self.registration_mode:
-                # Check if all 10 samples already captured
-                current_step = getattr(self.registration_page, 'current_registration_step', 0)
-                steps = getattr(self.registration_page, 'registration_steps', [])
-                if steps and current_step >= len(steps):
-                    self.registration_page.display_camera_feed(display_frame)
-                    self.processing = False
-                    return
-
-                # Do detection to show boxes during registration
-                processed_for_det = self.face_recognizer.preprocess_image(frame_rgb)
-                detected_faces = self.face_recognizer.detect_faces(processed_for_det)
-                
-                if detected_faces:
-                    # Get LARGEST face (by area)
-                    face = max(detected_faces, key=lambda f: f['bbox'][2] * f['bbox'][3])
-                    
-                    # Extract bounding box coordinates
-                    x, y, w, h = face['bbox']
-                    
-                    # ★★★ DRAW GREEN BOUNDING BOX ★★★
-                    self.draw_box_rgb(
-                        display_frame,           # Target image
-                        x,                       # Left edge
-                        y,                       # Top edge
-                        x + w,                   # Right edge
-                        y + h,                   # Bottom edge
-                        GREEN_RGB,               # Color
-                        thickness=4              # Line width
-                    )
-                    
-                    # ★★★ DRAW INSTRUCTION ICON ABOVE FACE ★★★
-                    if current_step < len(steps):
-                        icon = steps[current_step]["icon"]
-                        self.put_text_rgb(
-                            display_frame,
-                            icon,
-                            x + w//2 - 20,           # X: center of face, offset
-                            max(0, y - 20),          # Y: above face (ensure not negative)
-                            GREEN_RGB,
-                            scale=2.0,
-                            thickness=4
-                        )
-                
-                # Update current frame for capture logic (capture on original raw frame)
-                self.registration_page.set_current_frame(frame_rgb)
-                # Display the annotated frame in the registration UI
-                self.registration_page.display_camera_feed(display_frame)
-                self.processing = False
-                return
-
-            else:
-                # Recognition mode with SMART liveness
-                detected, recognized = self.face_recognizer.process_frame(frame_rgb, preprocess=True)
-
+                # Keep the confirmation banner over the live feed
+                box = None
                 if recognized:
-                    person = recognized[0]
-                    x, y, w, h = person['bbox']
-                    raw_name = person['name']
-                    similarity = person['similarity']
-                    is_confident = person['is_confident']
-
-                    # ★★★ TEMPORAL BUFFER INTEGRATION ★★★
-                    # Add raw recognition to buffer and get consensus
-                    self.temporal_buffer.add_result(raw_name, similarity)
-                    
-                    # Get stable identity from buffer consensus
-                    consensus_name, agreement, is_stable = self.temporal_buffer.get_consensus()
-                    
-                    # Use consensus name if available and stable, otherwise use raw
-                    if consensus_name and is_stable:
-                        name = consensus_name
-                        # Recalculate is_confident based on consensus
-                        is_confident = agreement >= config.TEMPORAL_AGREEMENT_THRESHOLD
-                    else:
-                        name = raw_name
-                    
-                    # Log flicker prevention (only if consensus overrides raw)
-                    if consensus_name and consensus_name != raw_name and is_stable:
-                        print(f"🔒 Anti-flicker: {raw_name} → {consensus_name} (agreement: {agreement:.0%})")
-                    # ★★★ END TEMPORAL BUFFER ★★★
-
-                    # ★★★ SMART LIVENESS LOGIC ★★★
-                    liveness_ok = True
-                    liveness_conf = 1.0
-
-                    if is_confident and config.ENABLE_LIVENESS:
-                        current_time = time.time()
-
-                        # Check if person changed
-                        if self.last_recognized_person != name:
-                            # Different person - check if need reset
-                            if self.person_last_seen_time is not None:
-                                time_elapsed = current_time - self.person_last_seen_time
-
-                                # Only reset if gone 30+ seconds
-                                if time_elapsed >= self.RESET_TIMEOUT:
-                                    if self.face_recognizer.liveness_detector:
-                                        self.face_recognizer.liveness_detector.reset()
-                                        print(f"🔄 Liveness RESET after {time_elapsed:.1f}s away")
-
-                            self.last_recognized_person = name
-                            self.person_last_seen_time = current_time
-                        else:
-                            # Same person
-                            self.person_last_seen_time = current_time
-
-                        # Check liveness (if not verified yet)
-                        if self.face_recognizer.liveness_detector and not self.face_recognizer.liveness_detector.is_verified_live:
-                            face_for_liveness = self.face_recognizer.extract_face_region(
-                                frame_rgb, 
-                                person, 
-                                align=False
-                            )
-                            if face_for_liveness is not None:
-                                face_small = cv2.resize(face_for_liveness, (64, 64))
-                                liveness_ok, liveness_conf, details = self.face_recognizer.liveness_detector.check_liveness(face_small)
-                        else:
-                            # Already verified
-                            liveness_ok = True
-                            liveness_conf = 0.95
-
-                    # Determine status
-                    if is_confident and liveness_ok:
-                        # REAL PERSON - Reset unknown timer
-                        if self.unknown_person_start_time is not None:
-                            print(f"✅ Known person detected, unknown timer reset")
-                            self.unknown_person_start_time = None
-                            self.unknown_person_embedding = None
-                            self.unknown_person_id = None
-                            self.update_button_visibility(None)
-
-                        color_rgb = GREEN_RGB
-                        self.current_recognized_person = name
-
-                        # ★★★ BACKGROUND SYNC - Run during detection, before confirmation ★★★
-                        # This pre-fetches blocked status so we know immediately on confirmation
-                        if self.api_client and not self.face_confirmed:
-                            self._sync_status_for_person(name)
-
-                        # ★★★ FACE CONFIRMATION LOGIC ★★★
-                        current_time = time.time()
-                        
-                        if self.last_stable_person == name:
-                            # Same person - check if confirmation delay reached
-                            if self.confirmation_start_time is not None:
-                                time_recognized = current_time - self.confirmation_start_time
-                                
-                                if time_recognized >= self.CONFIRMATION_DELAY and not self.face_confirmed:
-                                    # CONFIRM THE FACE - Create frozen frame with name overlay
-                                    print(f"✅ Face CONFIRMED: {name} ({similarity:.0%}) after {time_recognized:.1f}s")
-                                    self.face_confirmed = True
-                                    self.confirmed_person_name = name
-                                    self.confirmed_person_similarity = similarity
-                                    
-                                    # Create frozen frame with prominent name display
-                                    frozen = display_frame.copy()
-                                    
-                                    # Draw face box
-                                    self.draw_box_rgb(frozen, x, y, x + w, y + h, CYAN_RGB, 6)
-                                    
-                                    # Draw confirmation banner at top
-                                    banner_height = 120
-                                    self.draw_filled_box_rgb(frozen, 0, 0, frozen.shape[1], banner_height, (0, 180, 120))
-                                    
-                                    # Draw prominent name on banner
-                                    name_text = f" {name}"
-                                    self.put_text_rgb(frozen, name_text, 30, 70, (255, 255, 255), 2.0, 5)
-                                    
-                                    # Draw similarity score
-                                    score_text = f"Confirmed : {similarity:.0%}"
-                                    self.put_text_rgb(frozen, score_text, 30, 105, (200, 255, 220), 0.9, 2)
-                                    
-                                    # Draw instruction at bottom
-                                    instr_y = frozen.shape[0] - 40
-                                    self.put_text_rgb(frozen, "Select an action below", frozen.shape[1]//2 - 180, instr_y, (255, 255, 255), 1.0, 2)
-                                    
-                                    self.confirmed_frame = frozen
-                                    
-                                    # ★★★ SHOW NOTIFICATION & BUTTONS ONLY AFTER CONFIRMATION ★★★
-                                    state_display = self.state_manager.get_state_display(name)
-                                    self.status_label.setText(f"✅ CONFIRMED: {name} | {state_display}")
-                                    
-                                    # Check if user is blocked (already synced in background)
-                                    if self.is_user_blocked:
-                                        # Show blocked notification NOW (after confirmation)
-                                        self.notification_overlay.show_notification(
-                                            "⚠️ Action Blocked", 
-                                            self.blocked_message or "Action not allowed", 
-                                            "warning", 5000
-                                        )
-                                        # Keep buttons hidden
-                                        self.button_scroll.setVisible(False)
-                                        
-                                        # ★★★ AUTO-RESET to welcome screen after notification ★★★
-                                        # Wait for notification to display, then reset
-                                        QTimer.singleShot(4000, self._reset_face_confirmation)
-                                    else:
-                                        # Not blocked - show buttons
-                                        self.button_scroll.setVisible(True)
-                                        self.update_button_visibility(name)
-                                    
-                                    # Display frozen frame immediately
-                                    self.display_frame(frozen)
-                                    self.processing = False
-                                    return
-                            else:
-                                self.confirmation_start_time = current_time
-                        else:
-                            # Different person - reset confirmation timer
-                            self.last_stable_person = name
-                            self.confirmation_start_time = current_time
-                            self.face_confirmed = False
-                            self.confirmed_person_name = None
-                            self.confirmed_frame = None
-                        # ★★★ END FACE CONFIRMATION LOGIC ★★★
-
-                        verified = ""
-                        if config.ENABLE_LIVENESS and self.face_recognizer.liveness_detector:
-                            if self.face_recognizer.liveness_detector.is_verified_live:
-                                verified = "✓"
-
-                        if self.locked_person_for_action == name:
-                            state_display = self.state_manager.get_state_display(name)
-                            status_text = f"👤 {name} {verified} • {similarity:.0%} | {state_display}"
-                        else:
-                            # Show confirmation progress
-                            if self.confirmation_start_time:
-                                progress = min(1.0, (current_time - self.confirmation_start_time) / self.CONFIRMATION_DELAY)
-                                status_text = f"👤 {name} {verified} • {similarity:.0%} | Confirming... {progress:.0%}"
-                            else:
-                                api_indicator = "📡" if config.API_ENABLED else ""
-                                status_text = f"👤 {name} {verified} • {similarity:.0%} {api_indicator}"
-
-                        self.status_label.setText(status_text)
-                        self.update_button_visibility(name)
-
-
-                    elif is_confident and not liveness_ok:
-                        # WAITING FOR BLINK
-                        color_rgb = YELLOW_RGB
-                        display_name = "👁️ Please Blink"
-                        self.current_recognized_person = None
-                        self.status_label.setText(f"👁️ {name} detected - Please blink")
-                        name = display_name
-
-                    else:
-                        name = "Unknown"
-                        color_rgb = RED_RGB
-                        self.current_recognized_person = None
-                        
-                        # ★★★ UNKNOWN PERSON MONITORING - Gated by ENABLE_MQTT_FEATURES ★★★
-                        if getattr(config, 'ENABLE_MQTT_FEATURES', False):
-                            current_time = time.time()
-                            
-                            if self.unknown_person_start_time is None:
-                                # First detection of unknown person
-                                self.unknown_person_start_time = current_time
-                                self.unknown_person_last_frame = frame_rgb.copy()
-                                self.unknown_person_last_bbox = (x, y, w, h)
-                                self.unknown_person_embedding = None
-                                self.unknown_person_id = None
-                                self.update_button_visibility(None)
-                                # Show button frame so "ADD NEW FACE" is accessible for unknown persons
-                                self.button_scroll.setVisible(True)
-
-                                self.status_label.setText("⚠️ Unknown Person - Monitoring")
-                                print(f"⚠️ Unknown person detected, timer started")
-                            else:
-                                # Unknown person still in frame
-                                duration = current_time - self.unknown_person_start_time
-                                self.unknown_person_last_frame = frame_rgb.copy()
-                                self.unknown_person_last_bbox = (x, y, w, h)
-                                
-                                # ===== TIMER DISPLAY =====
-                                timer_text = f"Unknown: {int(duration)}s / {int(config.UNKNOWN_PERSON_TIMEOUT)}s"
-                                self.status_label.setText(f"⚠️ {timer_text}")
-                                
-                                # Check if threshold exceeded
-                                if duration >= config.UNKNOWN_PERSON_TIMEOUT:
-                                    # Extract embedding if not done yet
-                                    if self.unknown_person_embedding is None:
-                                        face_img = self.face_recognizer.extract_face_region(
-                                            self.unknown_person_last_frame, person, align=False)
-                                        if face_img is not None:
-                                            self.unknown_person_embedding = self.face_recognizer.extract_embedding(face_img)
-                                            
-                                            if self.unknown_person_embedding is not None:
-                                                self.unknown_person_id, is_new = self.unknown_tracker.get_or_create_unknown(
-                                                    self.unknown_person_embedding)
-                                    
-                                    # Check cooldown and send incident
-                                    if self.unknown_person_id:
-                                        can_send, reason = self.unknown_tracker.can_send_incident(self.unknown_person_id)
-                                        
-                                        if can_send and self.mqtt_reporter and self.mqtt_reporter.connected:
-                                            person_info = self.unknown_tracker.get_person_info(self.unknown_person_id)
-                                            incident_num = person_info['incident_count'] + 1 if person_info else 1
-                                            
-                                            incident_sent = self.mqtt_reporter.send_incident(
-                                                frame=self.unknown_person_last_frame,
-                                                detection_time=datetime.fromtimestamp(self.unknown_person_start_time),
-                                                duration=duration,
-                                                bbox=None,  # Send whole frame
-                                                unknown_person_id=self.unknown_person_id,
-                                                incident_number=incident_num
-                                            )
-                                            
-                                            if incident_sent:
-                                                self.unknown_tracker.record_incident(self.unknown_person_id)
-                                                self.unknown_person_start_time = None
-                                                self.unknown_person_embedding = None
-                                                
-                                                self.notification_overlay.show_notification(
-                                                    "Security Alert",
-                                                    f"{self.unknown_person_id} detected\nDuration: {duration:.1f}s\nIncident #{incident_num}",
-                                                    "warning", 4000
-                                                )
-                        else:
-                            # MQTT Features disabled - just show status and "ADD NEW FACE" button
-                            self.status_label.setText("⚠️ Unknown Person")
-                            self.update_button_visibility(None)
-                            self.button_scroll.setVisible(True)
-
-
-
-                    self.draw_box_rgb(display_frame, x, y, x + w, y + h, color_rgb, 4)
-                    self.draw_filled_box_rgb(display_frame, x, y - 70, x + w, y, color_rgb)
-
-                    self.put_text_rgb(display_frame, name, x + 10, y - 40, BLACK_RGB, 1.0, 3)
-                    self.put_text_rgb(display_frame, f"{similarity:.0%}", x + 10, y - 10, BLACK_RGB, 0.8, 2)
-
+                    box = recognized[0].get('bbox')
                 elif detected:
-                    face = detected[0]
-                    x, y, w, h = face['bbox']
-                    self.draw_box_rgb(display_frame, x, y, x + w, y + h, YELLOW_RGB, 4)
-                    self.put_text_rgb(display_frame, "DETECTING...", x, y - 10, YELLOW_RGB, 0.7, 2)
-                    self.current_recognized_person = None
-                    self.status_label.setText("⏳ Detecting...")
+                    box = detected[0].get('bbox')
+                self._set_overlay({
+                    'box': box,
+                    'color': CYAN_RGB,
+                    'banner': f"{self.confirmed_person_name}",
+                })
+                return
 
+            # ── WELCOME <-> CAMERA TRANSITIONS ──
+            if has_face:
+                if self.display_stack.currentIndex() == 0:
+                    print("👤 Face detected - showing camera view (awaiting confirmation)")
+                    self.display_stack.setCurrentIndex(1)
+                    self.button_scroll.setVisible(False)
+                    if hasattr(self, 'welcome_widget'):
+                        self.welcome_widget.stop_animation()
+                if self.no_face_timeout:
+                    self.no_face_timeout.stop()
+                    self.no_face_timeout = None
+            else:
+                if self.display_stack.currentIndex() == 1:
+                    if self.no_face_timeout is None:
+                        self.no_face_timeout = QTimer()
+                        self.no_face_timeout.setSingleShot(True)
+                        self.no_face_timeout.timeout.connect(self.show_welcome_screen)
+                        self.no_face_timeout.start(3000)  # 3 seconds
+
+            # ── RECOGNITION ──
+            if recognized:
+                person = recognized[0]
+                x, y, w, h = person['bbox']
+                raw_name = person['name']
+                similarity = person['similarity']
+                is_confident = person['is_confident']
+
+                # Temporal anti-flicker consensus
+                self.temporal_buffer.add_result(raw_name, similarity)
+                consensus_name, agreement, is_stable = self.temporal_buffer.get_consensus()
+                if consensus_name and is_stable:
+                    name = consensus_name
+                    is_confident = agreement >= config.TEMPORAL_AGREEMENT_THRESHOLD
                 else:
-                    # ★★★ NO FACE - RESET UNKNOWN TIMER ★★★
+                    name = raw_name
+                if consensus_name and consensus_name != raw_name and is_stable:
+                    print(f"🔒 Anti-flicker: {raw_name} → {consensus_name} (agreement: {agreement:.0%})")
+
+                # Smart liveness
+                liveness_ok = True
+                if is_confident and config.ENABLE_LIVENESS:
+                    current_time = time.time()
+                    if self.last_recognized_person != name:
+                        if self.person_last_seen_time is not None:
+                            time_elapsed = current_time - self.person_last_seen_time
+                            if time_elapsed >= self.RESET_TIMEOUT:
+                                if self.face_recognizer.liveness_detector:
+                                    self.face_recognizer.liveness_detector.reset()
+                                    print(f"🔄 Liveness RESET after {time_elapsed:.1f}s away")
+                        self.last_recognized_person = name
+                        self.person_last_seen_time = current_time
+                    else:
+                        self.person_last_seen_time = current_time
+
+                    if self.face_recognizer.liveness_detector and not self.face_recognizer.liveness_detector.is_verified_live:
+                        face_for_liveness = self.face_recognizer.extract_face_region(
+                            frame_rgb, person, align=False)
+                        if face_for_liveness is not None:
+                            face_small = cv2.resize(face_for_liveness, (64, 64))
+                            liveness_ok, _, _ = self.face_recognizer.liveness_detector.check_liveness(face_small)
+                    else:
+                        liveness_ok = True
+
+                if is_confident and liveness_ok:
+                    # Known person -> reset unknown timer
                     if self.unknown_person_start_time is not None:
-                        print("👤 Unknown person left frame, timer reset")
+                        print(f"✅ Known person detected, unknown timer reset")
                         self.unknown_person_start_time = None
                         self.unknown_person_embedding = None
                         self.unknown_person_id = None
                         self.update_button_visibility(None)
 
+                    self.current_recognized_person = name
 
-                    # No face - track time
-                    if self.last_recognized_person is not None:
-                        if self.person_last_seen_time is not None:
-                            current_time = time.time()
-                            time_elapsed = current_time - self.person_last_seen_time
+                    # Non-blocking pre-fetch of blocked status
+                    if self.api_client and not self.face_confirmed:
+                        self._request_status_sync(name)
 
-                            if time_elapsed >= self.RESET_TIMEOUT:
-                                if self.face_recognizer.liveness_detector:
-                                    self.face_recognizer.liveness_detector.reset()
-                                    print(f"🔄 Auto-reset after {time_elapsed:.1f}s")
+                    # Confirmation timing
+                    current_time = time.time()
+                    if self.last_stable_person == name:
+                        if self.confirmation_start_time is not None:
+                            time_recognized = current_time - self.confirmation_start_time
+                            if time_recognized >= self.CONFIRMATION_DELAY and not self.face_confirmed:
+                                print(f"✅ Face CONFIRMED: {name} ({similarity:.0%}) after {time_recognized:.1f}s")
+                                self.face_confirmed = True
+                                self.confirmed_person_name = name
+                                self.confirmed_person_similarity = similarity
+                                self.confirmed_frame = None
 
-                                self.last_recognized_person = None
-                                self.person_last_seen_time = None
+                                state_display = self.state_manager.get_state_display(name)
+                                self.status_label.setText(f"✅ CONFIRMED: {name} | {state_display}")
 
+                                if self.is_user_blocked:
+                                    self.notification_overlay.show_notification(
+                                        "⚠️ Action Blocked",
+                                        self.blocked_message or "Action not allowed",
+                                        "warning", 5000
+                                    )
+                                    self.button_scroll.setVisible(False)
+                                    QTimer.singleShot(4000, self._reset_face_confirmation)
+                                else:
+                                    self.button_scroll.setVisible(True)
+                                    self.update_button_visibility(name)
+
+                                # Show banner over the LIVE feed (no frozen frame)
+                                self._set_overlay({
+                                    'box': (x, y, w, h),
+                                    'color': CYAN_RGB,
+                                    'banner': f"{name}",
+                                })
+                                return
+                        else:
+                            self.confirmation_start_time = current_time
+                    else:
+                        self.last_stable_person = name
+                        self.confirmation_start_time = current_time
+                        self.face_confirmed = False
+                        self.confirmed_person_name = None
+                        self.confirmed_frame = None
+
+                    verified = ""
+                    if config.ENABLE_LIVENESS and self.face_recognizer.liveness_detector:
+                        if self.face_recognizer.liveness_detector.is_verified_live:
+                            verified = "✓"
+
+                    if self.locked_person_for_action == name:
+                        state_display = self.state_manager.get_state_display(name)
+                        status_text = f"👤 {name} {verified} • {similarity:.0%} | {state_display}"
+                    else:
+                        if self.confirmation_start_time:
+                            progress = min(1.0, (current_time - self.confirmation_start_time) / self.CONFIRMATION_DELAY)
+                            status_text = f"👤 {name} {verified} • {similarity:.0%} | Confirming... {progress:.0%}"
+                        else:
+                            api_indicator = "📡" if config.API_ENABLED else ""
+                            status_text = f"👤 {name} {verified} • {similarity:.0%} {api_indicator}"
+                    self.status_label.setText(status_text)
+
+                    self._set_overlay({
+                        'box': (x, y, w, h),
+                        'color': GREEN_RGB,
+                        'label': name,
+                        'sublabel': f"{similarity:.0%}",
+                    })
+
+                elif is_confident and not liveness_ok:
                     self.current_recognized_person = None
-                    self.status_label.setText("✅ Ready • No face")
+                    self.status_label.setText(f"👁️ {name} detected - Please blink")
+                    self._set_overlay({
+                        'box': (x, y, w, h),
+                        'color': YELLOW_RGB,
+                        'label': "Please Blink",
+                    })
 
-                # Only display frame if camera view is active
-                if self.display_stack.currentIndex() == 1:
-                    self.display_frame(display_frame)
+                else:
+                    self.current_recognized_person = None
+                    self._handle_unknown_person(person, frame_rgb, (x, y, w, h))
+                    self._set_overlay({
+                        'box': (x, y, w, h),
+                        'color': RED_RGB,
+                        'label': "Unknown",
+                        'sublabel': f"{similarity:.0%}",
+                    })
+
+            elif detected:
+                face = detected[0]
+                x, y, w, h = face['bbox']
+                self.current_recognized_person = None
+                self.status_label.setText("⏳ Detecting...")
+                self._set_overlay({
+                    'box': (x, y, w, h),
+                    'color': YELLOW_RGB,
+                    'label': "DETECTING...",
+                })
+
+            else:
+                # No face present
+                if self.unknown_person_start_time is not None:
+                    print("👤 Unknown person left frame, timer reset")
+                    self.unknown_person_start_time = None
+                    self.unknown_person_embedding = None
+                    self.unknown_person_id = None
+                    self.update_button_visibility(None)
+
+                if self.last_recognized_person is not None and self.person_last_seen_time is not None:
+                    time_elapsed = time.time() - self.person_last_seen_time
+                    if time_elapsed >= self.RESET_TIMEOUT:
+                        if self.face_recognizer.liveness_detector:
+                            self.face_recognizer.liveness_detector.reset()
+                            print(f"🔄 Auto-reset after {time_elapsed:.1f}s")
+                        self.last_recognized_person = None
+                        self.person_last_seen_time = None
+
+                self.current_recognized_person = None
+                self.status_label.setText("✅ Ready • No face")
+                self._set_overlay({})
 
         except Exception as e:
-            print(f"Processing error: {e}")
+            print(f"Recognition result error: {e}")
             import traceback
             traceback.print_exc()
-        finally:
-            self.processing = False
+
+    def _handle_registration_result(self, detected_faces, frame_rgb):
+        """Draw registration guidance boxes and forward frames to the registration page."""
+        current_step = getattr(self.registration_page, 'current_registration_step', 0)
+        steps = getattr(self.registration_page, 'registration_steps', [])
+
+        display = frame_rgb.copy()
+
+        if steps and current_step >= len(steps):
+            self.registration_page.display_camera_feed(display)
+            return
+
+        if detected_faces:
+            face = max(detected_faces, key=lambda f: f['bbox'][2] * f['bbox'][3])
+            x, y, w, h = face['bbox']
+            self.draw_box_rgb(display, x, y, x + w, y + h, (0, 255, 0), thickness=4)
+            if current_step < len(steps):
+                icon = steps[current_step]["icon"]
+                self.put_text_rgb(display, icon, x + w // 2 - 20, max(0, y - 20),
+                                  (0, 255, 0), scale=2.0, thickness=4)
+
+        # Capture logic uses the raw frame; display uses the annotated copy
+        self.registration_page.set_current_frame(frame_rgb)
+        self.registration_page.display_camera_feed(display)
+
+    def _handle_unknown_person(self, person, frame_rgb, bbox):
+        """Unknown-person monitoring (gated by ENABLE_MQTT_FEATURES)."""
+        x, y, w, h = bbox
+        if getattr(config, 'ENABLE_MQTT_FEATURES', False):
+            current_time = time.time()
+
+            if self.unknown_person_start_time is None:
+                self.unknown_person_start_time = current_time
+                self.unknown_person_last_frame = frame_rgb.copy()
+                self.unknown_person_last_bbox = (x, y, w, h)
+                self.unknown_person_embedding = None
+                self.unknown_person_id = None
+                self.update_button_visibility(None)
+                self.button_scroll.setVisible(True)
+                self.status_label.setText("⚠️ Unknown Person - Monitoring")
+                print(f"⚠️ Unknown person detected, timer started")
+            else:
+                duration = current_time - self.unknown_person_start_time
+                self.unknown_person_last_frame = frame_rgb.copy()
+                self.unknown_person_last_bbox = (x, y, w, h)
+
+                timer_text = f"Unknown: {int(duration)}s / {int(config.UNKNOWN_PERSON_TIMEOUT)}s"
+                self.status_label.setText(f"⚠️ {timer_text}")
+
+                if duration >= config.UNKNOWN_PERSON_TIMEOUT:
+                    if self.unknown_person_embedding is None:
+                        face_img = self.face_recognizer.extract_face_region(
+                            self.unknown_person_last_frame, person, align=False)
+                        if face_img is not None:
+                            self.unknown_person_embedding = self.face_recognizer.extract_embedding(face_img)
+                            if self.unknown_person_embedding is not None:
+                                self.unknown_person_id, is_new = self.unknown_tracker.get_or_create_unknown(
+                                    self.unknown_person_embedding)
+
+                    if self.unknown_person_id:
+                        can_send, reason = self.unknown_tracker.can_send_incident(self.unknown_person_id)
+                        if can_send and self.mqtt_reporter and self.mqtt_reporter.connected:
+                            person_info = self.unknown_tracker.get_person_info(self.unknown_person_id)
+                            incident_num = person_info['incident_count'] + 1 if person_info else 1
+                            incident_sent = self.mqtt_reporter.send_incident(
+                                frame=self.unknown_person_last_frame,
+                                detection_time=datetime.fromtimestamp(self.unknown_person_start_time),
+                                duration=duration,
+                                bbox=None,
+                                unknown_person_id=self.unknown_person_id,
+                                incident_number=incident_num
+                            )
+                            if incident_sent:
+                                self.unknown_tracker.record_incident(self.unknown_person_id)
+                                self.unknown_person_start_time = None
+                                self.unknown_person_embedding = None
+                                self.notification_overlay.show_notification(
+                                    "Security Alert",
+                                    f"{self.unknown_person_id} detected\nDuration: {duration:.1f}s\nIncident #{incident_num}",
+                                    "warning", 4000
+                                )
+        else:
+            self.status_label.setText("⚠️ Unknown Person")
+            self.update_button_visibility(None)
+            self.button_scroll.setVisible(True)
 
     @Slot(str)
     def update_status(self, message):
@@ -1894,8 +2069,8 @@ class AttendanceKioskGUI(QMainWindow):
         # Ensure camera is running for registration
         if not self.camera_thread or not self.camera_thread.isRunning():
             self.init_camera()
-        if not self.process_timer.isActive():
-            self.process_timer.start(1000 // config.CAMERA_FPS)
+        if not self.display_timer.isActive():
+            self.display_timer.start(1000 // max(getattr(config, 'DISPLAY_FPS', 25), 1))
 
         # ── Step 1: Collect name ─────────────────────────────────────────────
         name_dlg = TextInputDialog(self, title="Enter Person's Name",
@@ -1994,121 +2169,52 @@ class AttendanceKioskGUI(QMainWindow):
             print(f"⚠️ File logging error: {e}")
 
     def verify_and_log_action(self, action):
-        """Verify and log with person locking and auto-fading success"""
+        """Confirm with the user, then run the heavy work off the GUI thread."""
 
         if not self.locked_person_for_action:
-            # ★★★ CHANGED: Use auto-fading overlay instead of QMessageBox ★★★
             self.notification_overlay.show_notification("Error", "No person locked!", "error", 1000)
             return
 
         if not self._guard_server_online():
             return
 
-        # ★★★ SET EVENT IN PROGRESS - Pause face processing during dialog ★★★
+        # ★★★ SET EVENT IN PROGRESS - Pause recognition during the action ★★★
         self.event_in_progress = True
 
         dialog = SimpleConfirmationDialog(self, self.locked_person_for_action, action)
 
-        if dialog.exec() == QDialog.Accepted:
-            timestamp = datetime.now()
-            
-            # ★★★ VALIDATE WITH API FIRST ★★★
-            if self.api_client:
-                try:
-                    employee_id = self.face_recognizer.get_employee_id(self.locked_person_for_action)
-                    api_success, api_error = self.api_client.validate_and_send_event(
-                        name=self.locked_person_for_action,
-                        action=action,
-                        timestamp=timestamp,
-                        employee_id=employee_id
-                    )
-                    
-                    if not api_success:
-                        error_msg = api_error or OFFLINE_MESSAGE
-                        self.notification_overlay.show_notification("❌ Action Rejected", error_msg, "error", 4000)
-                        self.locked_person_for_action = None
-                        self.locked_person_timestamp = None
-                        self.event_in_progress = False
-                        QTimer.singleShot(4000, self._reset_face_confirmation)
-                        return
-                except Exception as e:
-                    print(f"⚠️ API validation error: {e}")
-                    self.notification_overlay.show_notification("Error", OFFLINE_MESSAGE, "error", 3000)
-                    self.locked_person_for_action = None
-                    self.locked_person_timestamp = None
-                    self.event_in_progress = False
-                    return
-            
-            # ★★★ UPDATE LOCAL STATE (only after API succeeded) ★★★
-            action_map = {
-                "TIME IN": self.state_manager.time_in,
-                "TIME OUT": self.state_manager.time_out,
-                "BREAK START": self.state_manager.break_start,
-                "BREAK END": self.state_manager.break_end,
-                "JOB START": self.state_manager.job_start,
-                "JOB END": self.state_manager.job_end
-            }
-    
-            if action in action_map:
-                success, state_msg = action_map[action](self.locked_person_for_action)
-                if not success:
-                    self.notification_overlay.show_notification("Error", state_msg, "error", 2000)
-                    self.locked_person_for_action = None
-                    self.locked_person_timestamp = None
-                    return
-    
-            # Log to file (API already sent above)
-            self.log_action_local_only(action, self.locked_person_for_action, timestamp)
-            timestamp_str = timestamp.strftime("%H:%M:%S")
-
-            # Adaptive learning
-            if self.current_frame is not None and self.current_recognized_person == self.locked_person_for_action:
-                try:
-                    faces = self.face_recognizer.detect_faces(self.current_frame)
-                    if faces:
-                        face = max(faces, key=lambda f: f['bbox'][2] * f['bbox'][3])
-                        face_img = self.face_recognizer.extract_face_region(self.current_frame, face, align=False)
-
-                        if face_img is not None:
-                            is_valid, msg, quality = self.face_recognizer.validate_face_sample(
-                                face_img, 
-                                check_liveness=False
-                            )
-
-                            if is_valid and quality >= 0.75:
-                                embedding = self.face_recognizer.extract_embedding(face_img)
-                                if embedding is not None:
-                                    added = self.face_recognizer.add_embedding_to_existing_person(
-                                        self.locked_person_for_action, 
-                                        embedding,
-                                        max_embeddings=50
-                                    )
-                                    if added:
-                                        self.adaptive_learning_count += 1
-                except Exception as e:
-                    print(f"Adaptive learning error: {e}")
-
-            # ★★★ CHANGED: Use auto-fading overlay instead of QMessageBox ★★★
-            api_note = "Recorded" if self.api_client else "💾 Local"
-            # state_display = self.state_manager.get_state_display(self.locked_person_for_action)
-            message = f"{action}\n{self.locked_person_for_action}\n{timestamp_str}\n{api_note}"
-            self.notification_overlay.show_notification("Success", message, "success", 2000)
-            if self.current_recognized_person:
-                self.update_button_visibility(self.current_recognized_person)
-
-            
+        if dialog.exec() != QDialog.Accepted:
+            # Cancelled - clear lock but keep face confirmation
             self.locked_person_for_action = None
             self.locked_person_timestamp = None
-            
-            # ★★★ RESET FACE CONFIRMATION AFTER SUCCESSFUL ACTION ★★★
-            self._reset_face_confirmation()
-
-        else:
-            self.locked_person_for_action = None
-            self.locked_person_timestamp = None
-            
-            # ★★★ CLEAR EVENT FLAG BUT KEEP CONFIRMATION ON CANCEL ★★★
             self.event_in_progress = False
+            return
+
+        # Run API validation + state update + adaptive learning OFF the GUI thread
+        person = self.locked_person_for_action
+        self.status_label.setText(f"⏳ Recording {action}...")
+        self._action_worker = ActionWorker(self, action, person, self.current_frame, datetime.now())
+        self._action_worker.done.connect(self._on_action_done, Qt.QueuedConnection)
+        self._action_worker.start()
+
+    @Slot(bool, str, bool)
+    def _on_action_done(self, success, message, should_reset):
+        """Handle completion of an ActionWorker (runs on the GUI thread)."""
+        if success:
+            self.notification_overlay.show_notification("Success", message, "success", 2000)
+            self.locked_person_for_action = None
+            self.locked_person_timestamp = None
+            # event_in_progress is cleared by _reset_face_confirmation
+            self._reset_face_confirmation()
+        else:
+            title = "❌ Action Rejected" if should_reset else "Error"
+            duration = 4000 if should_reset else 2000
+            self.notification_overlay.show_notification(title, message, "error", duration)
+            self.locked_person_for_action = None
+            self.locked_person_timestamp = None
+            self.event_in_progress = False
+            if should_reset:
+                QTimer.singleShot(4000, self._reset_face_confirmation)
 
     def update_button_visibility(self, person_name):
         if not person_name:
@@ -2118,8 +2224,11 @@ class AttendanceKioskGUI(QMainWindow):
             self._rearrange_button_grid()
             return
         
-        # ★★★ SYNC STATUS FROM SERVER FIRST ★★★
-        if not self._sync_status_for_person(person_name, show_loading=True):
+        # ★★★ NON-BLOCKING: kick off a background status sync, use cached result ★★★
+        # The blocked status is pre-fetched during recognition, so we read the
+        # cached value here instead of blocking the GUI thread on the network.
+        self._request_status_sync(person_name)
+        if self.is_user_blocked:
             # User is blocked - buttons hidden, grid needs refresh
             for btn in self.all_action_buttons:
                 btn.setVisible(False)
@@ -2281,8 +2390,11 @@ class AttendanceKioskGUI(QMainWindow):
         if hasattr(self, 'welcome_widget'):
             self.welcome_widget.stop_animation()
 
-        if self.process_timer:
-            self.process_timer.stop()
+        if hasattr(self, 'display_timer') and self.display_timer:
+            self.display_timer.stop()
+
+        if hasattr(self, 'recognition_worker') and self.recognition_worker:
+            self.recognition_worker.stop()
 
         if hasattr(self, 'db_reload_timer') and self.db_reload_timer:
             self.db_reload_timer.stop()
@@ -2315,8 +2427,11 @@ class AttendanceKioskGUI(QMainWindow):
 
     def closeEvent(self, event):
         """Handle window close event"""
-        if self.process_timer:
-            self.process_timer.stop()
+        if hasattr(self, 'display_timer') and self.display_timer:
+            self.display_timer.stop()
+
+        if hasattr(self, 'recognition_worker') and self.recognition_worker:
+            self.recognition_worker.stop()
 
         if self.camera_thread:
             self.camera_thread.stop()
