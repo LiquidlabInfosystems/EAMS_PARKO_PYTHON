@@ -222,10 +222,67 @@ class NotificationOverlay(QWidget):
         self.fade_timer.setSingleShot(True)
         self.fade_timer.timeout.connect(self.start_fade_out)
 
+        self._persistent = False
+        self.hide()
+
+    def sync_geometry(self):
+        """Match overlay size to parent window (for persistent + transient modes)."""
+        if self.parent():
+            self.setGeometry(self.parent().rect())
+
+    def _apply_notification_style(self, title, message, notification_type="success"):
+        """Set icon, colors, and text for the notification box."""
+        if notification_type == "success":
+            icon = "✅"
+            bg_color = "rgba(0, 170, 102, 220)"
+            border_color = "#00ff88"
+        elif notification_type == "error":
+            icon = "❌"
+            bg_color = "rgba(204, 51, 51, 220)"
+            border_color = "#ff4444"
+        elif notification_type == "warning":
+            icon = "⚠️"
+            bg_color = "rgba(245, 166, 35, 220)"
+            border_color = "#ff8c00"
+        else:  # info
+            icon = "ℹ️"
+            bg_color = "rgba(74, 144, 226, 220)"
+            border_color = "#6ab0ff"
+
+        self.bg_color = bg_color
+        self.border_color = border_color
+        self.update_styles()
+        self.icon_label.setText(icon)
+        self.title_label.setText(title.upper())
+        self.message_label.setText(message)
+
+    def show_persistent_notification(self, title, message, notification_type="error"):
+        """
+        Show a notification that stays on screen until hide_persistent_notification()
+        is called (used for server-offline warning).
+        """
+        self._persistent = True
+        self.fade_timer.stop()
+        if hasattr(self, 'fade_animation') and self.fade_animation:
+            self.fade_animation.stop()
+
+        self._apply_notification_style(title, message, notification_type)
+        self.sync_geometry()
+        self.setWindowOpacity(1.0)
+        self.show()
+        self.raise_()
+
+    def hide_persistent_notification(self):
+        """Hide a persistent notification."""
+        if not self._persistent:
+            return
+        self._persistent = False
+        self.fade_timer.stop()
         self.hide()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        self.sync_geometry()
         self.update_styles()
 
     def update_styles(self):
@@ -261,49 +318,26 @@ class NotificationOverlay(QWidget):
         Show notification with auto-fade
         notification_type: 'success', 'error', 'warning', 'info'
         """
-        # Set icon and colors based on type
-        if notification_type == "success":
-            icon = "✅"
-            bg_color = "rgba(0, 170, 102, 220)"
-            border_color = "#00ff88"
-        elif notification_type == "error":
-            icon = "❌"
-            bg_color = "rgba(204, 51, 51, 220)"
-            border_color = "#ff4444"
-        elif notification_type == "warning":
-            icon = "⚠️"
-            bg_color = "rgba(245, 166, 35, 220)"
-            border_color = "#ff8c00"
-        else:  # info
-            icon = "ℹ️"
-            bg_color = "rgba(74, 144, 226, 220)"
-            border_color = "#6ab0ff"
+        if self._persistent:
+            return
 
-        self.bg_color = bg_color
-        self.border_color = border_color
-        
-        # Trigger style update to apply new colors
-        self.update_styles()
+        self.fade_timer.stop()
+        if hasattr(self, 'fade_animation') and self.fade_animation:
+            self.fade_animation.stop()
 
-        self.icon_label.setText(icon)
-        self.title_label.setText(title.upper())
-        self.message_label.setText(message)
-
-        # Position in center of parent
-        if self.parent():
-            parent_rect = self.parent().geometry()
-            self.setGeometry(parent_rect)
-
-        # Show with full opacity
+        self._apply_notification_style(title, message, notification_type)
+        self.sync_geometry()
         self.setWindowOpacity(1.0)
         self.show()
         self.raise_()
 
         # Start fade timer
-        self.fade_timer.start(duration_ms - 500)  # Start fade 500ms before hiding
+        self.fade_timer.start(max(duration_ms - 500, 500))
 
     def start_fade_out(self):
         """Fade out animation"""
+        if self._persistent:
+            return
         self.fade_animation = QPropertyAnimation(self, b"windowOpacity")
         self.fade_animation.setDuration(500)
         self.fade_animation.setStartValue(1.0)
@@ -896,7 +930,6 @@ class AttendanceKioskGUI(QMainWindow):
 
         # Server connectivity (attendance gated when API enabled but server offline)
         self.server_available = True
-        self._offline_notified = False
 
         # ★★★ FACE CONFIRMATION STATE (no frozen frame - live feed stays on) ★★★
         self.face_confirmed = False              # Is the current face confirmed?
@@ -978,32 +1011,38 @@ class AttendanceKioskGUI(QMainWindow):
         self.server_available = online
 
         if online:
-            if hasattr(self, 'welcome_widget'):
-                self.welcome_widget.set_offline_mode(False)
+            self._hide_offline_notification()
             self.status_label.setText("Ready - Position face in front of camera")
             if not was_online:
                 self.notification_overlay.show_notification(
                     "Success", "Server connected", "success", 2000
                 )
-            self._offline_notified = False
         else:
             if self.face_confirmed or self.display_stack.currentIndex() != 0:
                 self._reset_face_confirmation()
             else:
                 self.show_welcome_screen()
-            if hasattr(self, 'welcome_widget'):
-                self.welcome_widget.set_offline_mode(True, OFFLINE_MESSAGE)
-            self.status_label.setText("⚠️ Network unavailable — please use mobile application")
-            if not self._offline_notified:
-                self.notification_overlay.show_notification(
-                    "Error", OFFLINE_MESSAGE, "error", 4000
-                )
-                self._offline_notified = True
+            self._show_offline_notification()
+
+    def _show_offline_notification(self):
+        """Show persistent red popup (❌ + title + message) until server is back."""
+        self.notification_overlay.show_persistent_notification(
+            "Error", OFFLINE_MESSAGE, "error"
+        )
+        if hasattr(self, 'welcome_widget'):
+            self.welcome_widget.set_offline_mode(True, OFFLINE_MESSAGE)
+        self.status_label.setText("⚠️ Network unavailable — please use mobile application")
+
+    def _hide_offline_notification(self):
+        """Hide persistent offline popup when server is reachable again."""
+        self.notification_overlay.hide_persistent_notification()
+        if hasattr(self, 'welcome_widget'):
+            self.welcome_widget.set_offline_mode(False)
 
     def _guard_server_online(self) -> bool:
-        """Return False and notify if attendance actions are blocked due to offline server."""
+        """Return False if attendance actions are blocked due to offline server."""
         if self.api_client and not self.api_client.is_server_online():
-            self.notification_overlay.show_notification("Error", OFFLINE_MESSAGE, "error", 3000)
+            self._show_offline_notification()
             return False
         return True
 
@@ -1200,6 +1239,8 @@ class AttendanceKioskGUI(QMainWindow):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        if hasattr(self, 'notification_overlay'):
+            self.notification_overlay.sync_geometry()
         self.update_styles()
 
     def update_styles(self):
@@ -1727,6 +1768,7 @@ class AttendanceKioskGUI(QMainWindow):
 
             # Block attendance flow when server is offline
             if self.api_client and not self.api_client.is_server_online():
+                self._show_offline_notification()
                 if self.server_available:
                     self._update_server_connectivity_state(False)
                 elif self.display_stack.currentIndex() != 0:
