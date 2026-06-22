@@ -97,6 +97,7 @@ class AttendanceAPIClient:
             print(f"  └─ Server: {self.server_ip}:{self.server_port}")
         print(f"  └─ Endpoint: {self.endpoint}")
         print(f"  └─ Health: {self.health_endpoint}")
+        print(f"  └─ Health URL: {self.health_url}")
         print(f"  └─ Full URL: {self.base_url}")
         if self.failed_queue:
             print(f"  └─ 💾 Loaded {len(self.failed_queue)} failed requests from disk")
@@ -107,6 +108,15 @@ class AttendanceAPIClient:
     def is_server_online(self) -> bool:
         """Return whether the server passed the last health check."""
         return self.server_online
+
+    def poll_health(self) -> bool:
+        """
+        Run a fresh health check against the server and update server_online.
+        Returns True if the server responds with HTTP 200.
+        """
+        ok = self._check_server_health()
+        self.last_health_check = time.time()
+        return ok
 
     def _load_failed_requests(self):
         """Load failed requests from persistent storage"""
@@ -133,29 +143,53 @@ class AttendanceAPIClient:
 
     def _check_server_health(self) -> bool:
         """
-        Check if server is online via health endpoint
-        Returns True if server responds with 200
+        Check if server is online via health endpoint.
+        Returns True if server responds with 200.
         """
+        started = time.time()
         try:
+            print(f"🏥 Health check: GET {self.health_url}")
             response = requests.get(self.health_url, timeout=3)
+            elapsed_ms = int((time.time() - started) * 1000)
 
             if response.status_code == 200:
+                body_preview = (response.text or "").strip().replace("\n", " ")[:120]
+                if body_preview:
+                    print(f"🏥 Health OK ({elapsed_ms}ms) status={response.status_code} body={body_preview}")
+                else:
+                    print(f"🏥 Health OK ({elapsed_ms}ms) status={response.status_code}")
                 if not self.server_online:
-                    print(f"✅ Server is ONLINE (health check passed)")
+                    print("✅ Server is ONLINE (health check passed)")
                 self.server_online = True
                 return True
-            else:
-                if self.server_online:
-                    print(f"⚠️ Server health check returned {response.status_code}")
-                self.server_online = False
-                return False
 
-        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
+            body_preview = (response.text or "").strip().replace("\n", " ")[:120]
+            print(
+                f"🏥 Health FAILED ({elapsed_ms}ms) status={response.status_code}"
+                + (f" body={body_preview}" if body_preview else "")
+            )
             if self.server_online:
-                print(f"🔌 Server is OFFLINE")
+                print(f"⚠️ Server health check returned {response.status_code}")
+            self.server_online = False
+            return False
+
+        except requests.exceptions.Timeout:
+            elapsed_ms = int((time.time() - started) * 1000)
+            print(f"🏥 Health TIMEOUT ({elapsed_ms}ms): {self.health_url}")
+            if self.server_online:
+                print("🔌 Server is OFFLINE")
+            self.server_online = False
+            return False
+        except requests.exceptions.ConnectionError as e:
+            elapsed_ms = int((time.time() - started) * 1000)
+            print(f"🏥 Health CONNECTION ERROR ({elapsed_ms}ms): {self.health_url} — {e}")
+            if self.server_online:
+                print("🔌 Server is OFFLINE")
             self.server_online = False
             return False
         except Exception as e:
+            elapsed_ms = int((time.time() - started) * 1000)
+            print(f"🏥 Health ERROR ({elapsed_ms}ms): {e}")
             if self.server_online:
                 print(f"❌ Health check error: {e}")
             self.server_online = False

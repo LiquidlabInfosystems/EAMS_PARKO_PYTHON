@@ -965,10 +965,10 @@ class AttendanceKioskGUI(QMainWindow):
 
 
     def _poll_server_health(self):
-        """Poll API client server status and react to connectivity changes."""
+        """Poll API health endpoint and react to connectivity changes."""
         if not self.api_client:
             return
-        online = self.api_client.is_server_online()
+        online = self.api_client.poll_health()
         if online != self.server_available:
             self._update_server_connectivity_state(online)
 
